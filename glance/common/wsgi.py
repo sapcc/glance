@@ -40,6 +40,7 @@ from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import encodeutils
 from oslo_utils import strutils
+from osprofiler import opts as profiler_opts
 import routes
 import routes.middleware
 import six
@@ -104,16 +105,6 @@ eventlet_opts = [
                       'wait forever.')),
 ]
 
-profiler_opts = [
-    cfg.BoolOpt("enabled", default=False,
-                help=_('If False fully disable profiling feature.')),
-    cfg.BoolOpt("trace_sqlalchemy", default=False,
-                help=_("If False doesn't trace SQL requests.")),
-    cfg.StrOpt("hmac_keys", default="SECRET_KEY",
-               help=_("Secret key to use to sign Glance API and Glance "
-                      "Registry services tracing messages.")),
-]
-
 
 LOG = logging.getLogger(__name__)
 
@@ -121,7 +112,7 @@ CONF = cfg.CONF
 CONF.register_opts(bind_opts)
 CONF.register_opts(socket_opts)
 CONF.register_opts(eventlet_opts)
-CONF.register_opts(profiler_opts, group="profiler")
+profiler_opts.set_defaults(CONF)
 
 ASYNC_EVENTLET_THREAD_POOL_LIST = []
 
