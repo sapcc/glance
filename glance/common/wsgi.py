@@ -410,16 +410,7 @@ def get_socket(default_port):
 
 
 def set_eventlet_hub():
-    try:
-        eventlet.hubs.use_hub('poll')
-    except Exception:
-        try:
-            eventlet.hubs.use_hub('selects')
-        except Exception:
-            msg = _("eventlet 'poll' nor 'selects' hubs are available "
-                    "on this platform")
-            raise exception.WorkerCreationFailure(
-                reason=msg)
+    eventlet.hubs.use_hub()
 
 
 def initialize_glance_store():
