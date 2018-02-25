@@ -19,7 +19,7 @@ Create Date: 2017-01-27 12:58:16.647499
 """
 
 from alembic import op
-from sqlalchemy import MetaData, Enum
+from sqlalchemy import MetaData, Enum, Table, sql
 
 from glance.cmd import manage
 from glance.db import migration
@@ -56,10 +56,13 @@ def _drop_triggers(engine):
 def _set_nullability_and_default_on_visibility(meta):
     # NOTE(hemanthm): setting the default on 'visibility' column
     # to 'shared'. Also, marking it as non-nullable.
-    # images = Table('images', meta, autoload=True)
+    images = Table('images', meta, autoload=True)
     existing_type = Enum('private', 'public', 'shared', 'community',
                          metadata=meta, name='image_visibility')
     with op.batch_alter_table('images') as batch_op:
+        batch_op.execute(images.update().
+                         values(visibility='shared').
+                         where(images.c.visibility == sql.null()))
         batch_op.alter_column('visibility',
                               nullable=False,
                               server_default='shared',
