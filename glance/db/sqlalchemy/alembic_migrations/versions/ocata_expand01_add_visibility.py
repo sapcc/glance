@@ -149,5 +149,9 @@ def upgrade():
 
     _add_visibility_column(meta)
     _change_nullability_and_default_on_is_public(meta)
+
     if manage.USE_TRIGGERS:
         _add_triggers(migrate_engine)
+    else:
+        images = Table('images', meta, autoload=True)
+        images.update(values={'image_visibility': 'public'}).where(images.c.is_public==True)
