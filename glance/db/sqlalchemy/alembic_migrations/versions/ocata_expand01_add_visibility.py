@@ -20,6 +20,7 @@ Create Date: 2017-01-27 12:58:16.647499
 
 from alembic import op
 from sqlalchemy import Column, Enum, MetaData, Table
+from sqlalchemy.sql import table, column
 
 from glance.cmd import manage
 from glance.db import migration
@@ -153,5 +154,11 @@ def upgrade():
     if manage.USE_TRIGGERS:
         _add_triggers(migrate_engine)
     else:
-        images = Table('images', meta, autoload=True)
-        images.update(values={'image_visibility': 'public'}).where(images.c.is_public==True)
+        images = table("images",
+                       column("visibility"),
+                       column("is_public"))
+        op.execute(
+            images
+            .update()
+            .values(visibility=op.inline_literal('public'))
+            .where(images.c.is_public))
