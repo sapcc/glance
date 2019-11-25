@@ -14,7 +14,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import collections
+# TODO(smcginnis) update this once six has support for collections.abc
+# (https://github.com/benjaminp/six/pull/241) or clean up once we drop py2.7.
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
+
 import datetime
 import uuid
 
@@ -287,7 +293,7 @@ class Image(object):
         raise NotImplementedError()
 
 
-class ExtraProperties(collections.MutableMapping, dict):
+class ExtraProperties(MutableMapping, dict):
 
     def __getitem__(self, key):
         return dict.__getitem__(self, key)
@@ -360,10 +366,10 @@ class Task(object):
                  task_input, result, message):
 
         if task_type not in self._supported_task_type:
-            raise exception.InvalidTaskType(task_type)
+            raise exception.InvalidTaskType(type=task_type)
 
         if status not in self._supported_task_status:
-            raise exception.InvalidTaskStatus(status)
+            raise exception.InvalidTaskStatus(status=status)
 
         self.task_id = task_id
         self._status = status

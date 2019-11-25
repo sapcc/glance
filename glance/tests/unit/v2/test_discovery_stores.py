@@ -39,10 +39,36 @@ class TestInfoControllers(base.MultiStoreClearingUnitTest):
                           req)
 
     def test_get_stores(self):
-        available_stores = ['ceph1', 'file1']
+        available_stores = ['cheap', 'fast', 'readonly_store']
         req = unit_test_utils.get_fake_request()
         output = self.controller.get_stores(req)
         self.assertIn('stores', output)
         for stores in output['stores']:
             self.assertIn('id', stores)
             self.assertIn(stores['id'], available_stores)
+
+    def test_get_stores_read_only_store(self):
+        available_stores = ['cheap', 'fast', 'readonly_store']
+        req = unit_test_utils.get_fake_request()
+        output = self.controller.get_stores(req)
+        self.assertIn('stores', output)
+        for stores in output['stores']:
+            self.assertIn('id', stores)
+            self.assertIn(stores['id'], available_stores)
+            if stores['id'] == 'readonly_store':
+                self.assertTrue(stores['read-only'])
+            else:
+                self.assertIsNone(stores.get('read-only'))
+
+    def test_get_stores_reserved_stores_excluded(self):
+        enabled_backends = {
+            'fast': 'file',
+            'cheap': 'file'
+        }
+        self.config(enabled_backends=enabled_backends)
+        req = unit_test_utils.get_fake_request()
+        output = self.controller.get_stores(req)
+        self.assertIn('stores', output)
+        self.assertEqual(2, len(output['stores']))
+        for stores in output["stores"]:
+            self.assertFalse(stores["id"].startswith("os_glance_"))

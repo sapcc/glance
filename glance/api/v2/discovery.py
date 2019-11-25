@@ -46,6 +46,9 @@ class InfoController(object):
 
         backends = []
         for backend in enabled_backends:
+            if backend.startswith("os_glance_"):
+                continue
+
             stores = {}
             stores['id'] = backend
             description = getattr(CONF, backend).store_description
@@ -53,6 +56,9 @@ class InfoController(object):
                 stores['description'] = description
             if backend == CONF.glance_store.default_backend:
                 stores['default'] = "true"
+            # Check if http store is configured then mark it as read-only
+            if enabled_backends[backend] == 'http':
+                stores['read-only'] = "true"
             backends.append(stores)
 
         return {'stores': backends}

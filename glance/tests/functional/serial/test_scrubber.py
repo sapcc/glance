@@ -346,13 +346,14 @@ class TestScrubber(functional.FunctionalTest):
     def test_scrubber_restore_image_with_daemon_running(self):
         self.cleanup()
         self.scrubber_daemon.start(daemon=True)
+        # Give the scrubber some time to start.
+        time.sleep(5)
 
         exe_cmd = "%s -m glance.cmd.scrubber" % sys.executable
         cmd = ("%s --restore fake_image_id" % exe_cmd)
         exitcode, out, err = execute(cmd, raise_error=False)
         self.assertEqual(1, exitcode)
-        self.assertIn('The glance-scrubber process is running under daemon',
-                      str(err))
+        self.assertIn('glance-scrubber is already running', str(err))
 
         self.stop_server(self.scrubber_daemon)
 
@@ -363,7 +364,7 @@ class TestScrubber(functional.FunctionalTest):
         # Sometimes the glance-scrubber process which is setup by the
         # previous test can't be shutdown immediately, so if we get the "daemon
         # running" message we sleep and try again.
-        not_down_msg = 'The glance-scrubber process is running under daemon'
+        not_down_msg = 'glance-scrubber is already running'
         total_wait = 15
         for _ in range(total_wait):
             exitcode, out, err = func()

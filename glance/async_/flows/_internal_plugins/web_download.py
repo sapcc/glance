@@ -12,10 +12,12 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
+import glance_store as store_api
 from glance_store import backend
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import encodeutils
+from oslo_utils import excutils
 from taskflow.patterns import linear_flow as lf
 from taskflow import task
 from taskflow.types import failure
@@ -42,15 +44,22 @@ class _WebDownload(task.Task):
         super(_WebDownload, self).__init__(
             name='%s-WebDownload-%s' % (task_type, task_id))
 
-        if CONF.node_staging_uri is None:
-            msg = (_("%(task_id)s of %(task_type)s not configured "
-                     "properly. Missing node_staging_uri: %(work_dir)s") %
-                   {'task_id': self.task_id,
-                    'task_type': self.task_type,
-                    'work_dir': CONF.node_staging_uri})
-            raise exception.BadTaskConfiguration(msg)
+        # NOTE(abhishekk): Use reserved 'os_glance_staging_store' for
+        # staging the data, the else part will be removed once old way
+        # of configuring store is deprecated.
+        if CONF.enabled_backends:
+            self.store = store_api.get_store_from_store_identifier(
+                'os_glance_staging_store')
+        else:
+            if CONF.node_staging_uri is None:
+                msg = (_("%(task_id)s of %(task_type)s not configured "
+                         "properly. Missing node_staging_uri: %(work_dir)s") %
+                       {'task_id': self.task_id,
+                        'task_type': self.task_type,
+                        'work_dir': CONF.node_staging_uri})
+                raise exception.BadTaskConfiguration(msg)
 
-        self.store = self._build_store()
+            self.store = self._build_store()
 
     def _build_store(self):
         # NOTE(flaper87): Due to the nice glance_store api (#sarcasm), we're
@@ -100,18 +109,28 @@ class _WebDownload(task.Task):
         # While using any path should be "technically" fine, it's not what
         # we recommend as the best solution. For more details on this, please
         # refer to the comment in the `_ImportToStore.execute` method.
-        data = script_utils.get_image_data_iter(self.uri)
+        try:
+            data = script_utils.get_image_data_iter(self.uri)
+        except Exception as e:
+            with excutils.save_and_reraise_exception():
+                LOG.error("Task %(task_id)s failed with exception %(error)s",
+                          {"error": encodeutils.exception_to_unicode(e),
+                           "task_id": self.task_id})
 
         path = self.store.add(self.image_id, data, 0)[0]
-
         return path
 
     def revert(self, result, **kwargs):
         if isinstance(result, failure.Failure):
-            LOG.exception(_LE('Task: %(task_id)s failed to import image '
-                              '%(image_id)s to the filesystem.'),
-                          {'task_id': self.task_id,
-                           'image_id': self.image_id})
+            LOG.error(_LE('Task: %(task_id)s failed to import image '
+                          '%(image_id)s to the filesystem.'),
+                      {'task_id': self.task_id,
+                       'image_id': self.image_id})
+            # NOTE(abhishekk): Revert image state back to 'queued' as
+            # something went wrong.
+            image = self.image_repo.get(self.image_id)
+            image.status = 'queued'
+            self.image_repo.save(image)
 
 
 def get_flow(**kwargs):

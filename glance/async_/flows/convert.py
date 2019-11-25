@@ -91,6 +91,7 @@ class _Convert(task.Task):
         # specified. There's no "sane" default for this
         # because the dest format may work differently depending
         # on the environment OpenStack is running in.
+        abs_file_path = file_path.split("file://")[-1]
         conversion_format = CONF.taskflow_executor.conversion_format
         if conversion_format is None:
             if not _Convert.conversion_missing_warned:
@@ -113,7 +114,13 @@ class _Convert(task.Task):
         # shields us from being vulnerable to an attack vector described here
         # https://bugs.launchpad.net/glance/+bug/1449062
 
-        dest_path = os.path.join(CONF.task.work_dir, "%s.converted" % image_id)
+        data_dir = CONF.task.work_dir
+        # NOTE(abhishekk): Use reserved 'os_glance_tasks_store' for tasks.
+        if CONF.enabled_backends:
+            data_dir = getattr(
+                CONF, 'os_glance_tasks_store').filesystem_store_datadir
+
+        dest_path = os.path.join(data_dir, "%s.converted" % image_id)
         stdout, stderr = putils.trycmd('qemu-img', 'convert',
                                        '-f', src_format,
                                        '-O', conversion_format,
@@ -123,7 +130,8 @@ class _Convert(task.Task):
         if stderr:
             raise RuntimeError(stderr)
 
-        os.rename(dest_path, file_path.split("file://")[-1])
+        os.unlink(abs_file_path)
+        os.rename(dest_path, abs_file_path)
         return file_path
 
     def revert(self, image_id, result=None, **kwargs):

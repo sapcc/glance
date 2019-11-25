@@ -20,6 +20,10 @@
 """
 Glance API Server
 """
+
+import os
+import sys
+
 import eventlet
 # NOTE(jokke): As per the eventlet commit
 # b756447bab51046dfc6f1e0e299cc997ab343701 there's circular import happening
@@ -27,11 +31,15 @@ import eventlet
 # before calling monkey_patch(). This is solved in eventlet 0.22.0 but we
 # need to address it before that is widely used around.
 eventlet.hubs.get_hub()
-eventlet.patcher.monkey_patch()
 
-import os
-import sys
+if os.name == 'nt':
+    # eventlet monkey patching the os module causes subprocess.Popen to fail
+    # on Windows when using pipes due to missing non-blocking IO support.
+    eventlet.patcher.monkey_patch(os=False)
+else:
+    eventlet.patcher.monkey_patch()
 
+from oslo_reports import guru_meditation_report as gmr
 from oslo_utils import encodeutils
 
 # If ../glance/__init__.py exists, add ../ to Python search path, so that
@@ -51,10 +59,12 @@ from glance.common import config
 from glance.common import exception
 from glance.common import wsgi
 from glance import notifier
+from glance import version
 
 CONF = cfg.CONF
 CONF.import_group("profiler", "glance.common.wsgi")
 logging.register_options(CONF)
+wsgi.register_cli_opts()
 
 # NOTE(rosmaita): Any new exceptions added should preserve the current
 # error codes for backward compatibility.  The value 99 is returned
@@ -78,6 +88,7 @@ def main():
         config.set_config_defaults()
         wsgi.set_eventlet_hub()
         logging.setup(CONF, 'glance')
+        gmr.TextGuruMeditation.setup_autorun(version)
         notifier.set_defaults()
 
         if CONF.profiler.enabled:
@@ -89,7 +100,15 @@ def main():
                 host=CONF.bind_host
             )
 
-        server = wsgi.Server(initialize_glance_store=True)
+        # NOTE(abhishekk): Added initialize_prefetcher KW argument to Server
+        # object so that prefetcher object should only be initialized in case
+        # of API service and ignored in case of registry. Once registry is
+        # removed this parameter should be removed as well.
+        initialize_prefetcher = False
+        if CONF.paste_deploy.flavor == 'keystone+cachemanagement':
+            initialize_prefetcher = True
+        server = wsgi.Server(initialize_glance_store=True,
+                             initialize_prefetcher=initialize_prefetcher)
         server.start(config.load_paste_app('glance-api'), default_port=9292)
         server.wait()
     except Exception as e:

@@ -1,6 +1,16 @@
 {
     "versions": [
         {
+            "id": "v2.9",
+            "links": [
+                {
+                    "href": "http://glance.openstack.example.org/v2/",
+                    "rel": "self"
+                }
+            ],
+            "status": "CURRENT"
+        },
+        {
             "id": "v2.8",
             "links": [
                 {
@@ -8,7 +18,7 @@
                     "rel": "self"
                 }
             ],
-            "status": "EXPERIMENTAL"
+            "status": "SUPPORTED"
         },
         {
             "id": "v2.7",
@@ -18,7 +28,7 @@
                     "rel": "self"
                 }
             ],
-            "status": "CURRENT"
+            "status": "SUPPORTED"
         },
         {
             "id": "v2.6",

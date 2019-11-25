@@ -22,6 +22,8 @@ import shlex
 import shutil
 import socket
 import subprocess
+import threading
+import time
 
 from alembic import command as alembic_command
 import fixtures
@@ -148,6 +150,26 @@ class BaseTestCase(testtools.TestCase):
         self.addCleanup(patcher.stop)
         return result
 
+    def delay_inaccurate_clock(self, duration=0.001):
+        """Add a small delay to compensate for inaccurate system clocks.
+
+        Some tests make assertions based on timestamps (e.g. comparing
+        'created_at' and 'updated_at' fields). In some cases, subsequent
+        time.time() calls may return identical values (python timestamps can
+        have a lower resolution on Windows compared to Linux - 1e-7 as
+        opposed to 1e-9).
+
+        A small delay (a few ms should be negligeable) can prevent such
+        issues. At the same time, it spares us from mocking the time
+        module, which might be undesired.
+        """
+
+        # For now, we'll do this only for Windows. If really needed,
+        # on Py3 we can get the clock resolution using time.get_clock_info,
+        # but at that point we may as well just sleep 1ms all the time.
+        if os.name == 'nt':
+            time.sleep(duration)
+
 
 class requires(object):
     """Decorator that initiates additional test setup/teardown."""
@@ -176,7 +198,11 @@ class depends_on_exe(object):
 
     def __call__(self, func):
         def _runner(*args, **kw):
-            cmd = 'which %s' % self.exe
+            if os.name != 'nt':
+                cmd = 'which %s' % self.exe
+            else:
+                cmd = 'where.exe', '%s' % self.exe
+
             exitcode, out, err = execute(cmd, raise_error=False)
             if exitcode != 0:
                 args[0].disabled_message = 'test requires exe: %s' % self.exe
@@ -325,7 +351,11 @@ def execute(cmd,
     path_ext = [os.path.join(os.getcwd(), 'bin')]
 
     # Also jack in the path cmd comes from, if it's absolute
-    args = shlex.split(cmd)
+    if os.name != 'nt':
+        args = shlex.split(cmd)
+    else:
+        args = cmd
+
     executable = args[0]
     if os.path.isabs(executable):
         path_ext.append(os.path.dirname(executable))
@@ -484,7 +514,7 @@ def start_http_server(image_id, image_data):
                 self.send_response(http.OK)
                 self.send_header('Content-Length', str(len(fixture)))
                 self.end_headers()
-                self.wfile.write(fixture)
+                self.wfile.write(six.b(fixture))
                 return
 
             def do_HEAD(self):
@@ -510,11 +540,11 @@ def start_http_server(image_id, image_data):
     httpd = BaseHTTPServer.HTTPServer(server_address, handler_class)
     port = httpd.socket.getsockname()[1]
 
-    pid = os.fork()
-    if pid == 0:
-        httpd.serve_forever()
-    else:
-        return pid, port
+    thread = threading.Thread(target=httpd.serve_forever)
+    thread.daemon = True
+    thread.start()
+
+    return thread, httpd, port
 
 
 class RegistryAPIMixIn(object):
@@ -730,8 +760,8 @@ def start_standalone_http_server():
     httpd = BaseHTTPServer.HTTPServer(server_address, handler_class)
     port = httpd.socket.getsockname()[1]
 
-    pid = os.fork()
-    if pid == 0:
-        httpd.serve_forever()
-    else:
-        return pid, port
+    thread = threading.Thread(target=httpd.serve_forever)
+    thread.daemon = True
+    thread.start()
+
+    return thread, httpd, port

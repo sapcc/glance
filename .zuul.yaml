@@ -5,23 +5,47 @@
     post-run: playbooks/legacy/glance-dsvm-grenade-multinode/post.yaml
     timeout: 10800
     required-projects:
-      - openstack-dev/grenade
-      - openstack-infra/devstack-gate
+      - openstack/grenade
+      - openstack/devstack-gate
       - openstack/glance
-    nodeset: legacy-ubuntu-xenial-2-node
 
 - job:
-    name: glance-eventlet-ssl-handshake-broken-py35
+    name: glance-eventlet-ssl-handshake-broken-py3
     parent: tox
     description: |
       See https://bugs.launchpad.net/glance/+bug/1482633
     vars:
-      tox_envlist: broken-py35-ssl-tests
+      tox_envlist: broken-py3-ssl-tests
     irrelevant-files:
+      - ^(test-|)requirements.txt$
+      - ^lower-constraints.txt$
       - ^.*\.rst$
       - ^api-ref/.*$
       - ^doc/.*$
+      - ^etc/.*$
       - ^releasenotes/.*$
+      - ^setup.cfg$
+      - ^tox.ini$
+      - ^\.zuul\.yaml$
+
+- job:
+    name: glance-code-constants-check
+    parent: tox
+    description: |
+      Tests to catch when code constants have gotten out of sync.
+    vars:
+      tox_envlist: gateonly
+    irrelevant-files:
+      - ^(test-|)requirements.txt$
+      - ^lower-constraints.txt$
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^setup.cfg$
+      - ^tox.ini$
+      - ^\.zuul\.yaml$
 
 - job:
     name: glance-tox-oslo-tips-base
@@ -30,11 +54,11 @@
     description: Abstract job for Glance vs. oslo libraries
     # NOTE(rosmaita): we only need functional test jobs, oslo is
     # already running periodic jobs using our unit tests.  Those
-    # jobs are configured for glance in openstack-infra/project-config/
+    # jobs are configured for glance in openstack/project-config/
     # zuul.d/projects.yaml using the template 'periodic-jobs-with-oslo-master'
-    # which is defined in openstack-infra/openstack-zuul-jobs/zuul.d/
+    # which is defined in openstack/openstack-zuul-jobs/zuul.d/
     # project-templates.yaml; the jobs the template refers to are
-    # defined in openstack-infra/openstack-zuul-jobs/zuul.d/jobs.yaml
+    # defined in openstack/openstack-zuul-jobs/zuul.d/jobs.yaml
     required-projects:
       - name: openstack/debtcollector
       - name: openstack/futurist
@@ -61,12 +85,12 @@
       tox_envlist: functional
 
 - job:
-    name: glance-tox-functional-py35-oslo-tips
+    name: glance-tox-functional-py36-oslo-tips
     parent: glance-tox-oslo-tips-base
     description: |
-      Glance py35 functional tests vs. oslo libraries masters
+      Glance py36 functional tests vs. oslo libraries masters
     vars:
-      tox_envlist: functional-py35
+      tox_envlist: functional-py36
 
 - job:
     name: glance-tox-keystone-tips-base
@@ -87,12 +111,12 @@
       tox_envlist: py27
 
 - job:
-    name: glance-tox-py35-keystone-tips
+    name: glance-tox-py36-keystone-tips
     parent: glance-tox-keystone-tips-base
     description: |
-      Glance py35 unit tests vs. keystone masters
+      Glance py36 unit tests vs. keystone masters
     vars:
-      tox_envlist: py35
+      tox_envlist: py36
 
 - job:
     name: glance-tox-functional-keystone-tips
@@ -103,12 +127,12 @@
       tox_envlist: functional
 
 - job:
-    name: glance-tox-functional-py35-keystone-tips
+    name: glance-tox-functional-py36-keystone-tips
     parent: glance-tox-keystone-tips-base
     description: |
-      Glance py35 functional tests vs. keystone masters
+      Glance py36 functional tests vs. keystone masters
     vars:
-      tox_envlist: functional-py35
+      tox_envlist: functional-py36
 
 - job:
     name: glance-tox-glance_store-tips-base
@@ -127,12 +151,12 @@
       tox_envlist: py27
 
 - job:
-    name: glance-tox-py35-glance_store-tips
+    name: glance-tox-py36-glance_store-tips
     parent: glance-tox-glance_store-tips-base
     description: |
-      Glance py35 unit tests vs. glance_store master
+      Glance py36 unit tests vs. glance_store master
     vars:
-      tox_envlist: py35
+      tox_envlist: py36
 
 - job:
     name: glance-tox-functional-glance_store-tips
@@ -143,12 +167,12 @@
       tox_envlist: functional
 
 - job:
-    name: glance-tox-functional-py35-glance_store-tips
+    name: glance-tox-functional-py36-glance_store-tips
     parent: glance-tox-glance_store-tips-base
     description: |
-      Glance py35 functional tests vs. glance_store master
+      Glance py36 functional tests vs. glance_store master
     vars:
-      tox_envlist: functional-py35
+      tox_envlist: functional-py36
 
 - job:
     name: glance-tox-cursive-tips-base
@@ -156,7 +180,7 @@
     abstract: true
     description: Abstract job for Glance vs. cursive and related libs
     required-projects:
-      - name: openstack/cursive
+      - name: x/cursive
       - name: openstack/python-barbicanclient
       - name: openstack/castellan
 
@@ -169,12 +193,12 @@
       tox_envlist: py27
 
 - job:
-    name: glance-tox-py35-cursive-tips
+    name: glance-tox-py36-cursive-tips
     parent: glance-tox-cursive-tips-base
     description: |
-      Glance py35 unit tests vs. cursive (and related libs) master
+      Glance py36 unit tests vs. cursive (and related libs) master
     vars:
-      tox_envlist: py35
+      tox_envlist: py36
 
 - job:
     name: glance-tox-functional-cursive-tips
@@ -185,12 +209,12 @@
       tox_envlist: functional
 
 - job:
-    name: glance-tox-functional-py35-cursive-tips
+    name: glance-tox-functional-py36-cursive-tips
     parent: glance-tox-cursive-tips-base
     description: |
-      Glance py35 functional tests vs. cursive (and related libs) master
+      Glance py36 functional tests vs. cursive (and related libs) master
     vars:
-      tox_envlist: functional-py35
+      tox_envlist: functional-py36
 
 - project:
     templates:
@@ -199,100 +223,69 @@
       - integrated-gate-py3
       - openstack-lower-constraints-jobs
       - openstack-python-jobs
-      - openstack-python35-jobs
-      - openstack-python36-jobs
-      - openstack-python37-jobs
+      - openstack-python3-train-jobs
       - periodic-stable-jobs
       - publish-openstack-docs-pti
       - release-notes-jobs-python3
     check:
       jobs:
         - openstack-tox-functional
-        - openstack-tox-functional-py35
-        - glance-eventlet-ssl-handshake-broken-py35:
+        - openstack-tox-functional-py37
+        - glance-eventlet-ssl-handshake-broken-py3:
             voting: false
+        - glance-code-constants-check
         - devstack-plugin-ceph-tempest:
             voting: false
-            irrelevant-files:
+            irrelevant-files: &tempest-irrelevant-files
               - ^(test-|)requirements.txt$
+              - ^lower-constraints.txt$
               - ^.*\.rst$
               - ^api-ref/.*$
+              - ^glance/hacking/.*$
+              - ^glance/locale/.*$
+              - ^glance/tests/.*$
               - ^doc/.*$
+              - ^etc/.*$
               - ^releasenotes/.*$
               - ^setup.cfg$
+              - ^tools/.*$
               - ^tox.ini$
+              - ^\.zuul\.yaml$
         - tempest-full:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
+            irrelevant-files: *tempest-irrelevant-files
         - neutron-grenade:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
+            irrelevant-files: *tempest-irrelevant-files
+        - tempest-full-py3:
+            irrelevant-files: *tempest-irrelevant-files
+        - grenade-py3:
+            irrelevant-files: *tempest-irrelevant-files
+
     gate:
       jobs:
         - openstack-tox-functional
-        - openstack-tox-functional-py35
+        - openstack-tox-functional-py37
         - tempest-full:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
+            irrelevant-files: *tempest-irrelevant-files
         - neutron-grenade:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
-
+            irrelevant-files: *tempest-irrelevant-files
+        - tempest-full-py3:
+            irrelevant-files: *tempest-irrelevant-files
+        - grenade-py3:
+            irrelevant-files: *tempest-irrelevant-files
     experimental:
       jobs:
+        - glance-tox-py27-glance_store-tips
+        - glance-tox-py36-glance_store-tips
+        - glance-tox-functional-glance_store-tips
+        - glance-tox-functional-py36-glance_store-tips
         - barbican-simple-crypto-devstack-tempest
         - glance-dsvm-grenade-multinode
         - devstack-plugin-ceph-tempest-py3:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
+            irrelevant-files: *tempest-irrelevant-files
         - tempest-pg-full:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
-        - tempest-full-py3-opensuse150:
-            irrelevant-files:
-              - ^(test-|)requirements.txt$
-              - ^.*\.rst$
-              - ^api-ref/.*$
-              - ^doc/.*$
-              - ^releasenotes/.*$
-              - ^setup.cfg$
-              - ^tox.ini$
+            irrelevant-files: *tempest-irrelevant-files
+        - tempest-full-py3-opensuse15:
+            irrelevant-files: *tempest-irrelevant-files
     periodic:
       jobs:
         # NOTE(rosmaita): we only want the "tips" jobs to be run against
@@ -304,34 +297,34 @@
         # The "tips" jobs can be removed from the stable branch .zuul.yaml
         # files if someone is so inclined, but that would require manual
         # maintenance, so we do not do it by default.  Another option is
-        # to define these jobs in the openstack-infra/project-config repo.
+        # to define these jobs in the openstack/project-config repo.
         # That would make us less agile in adjusting these tests, so we
         # aren't doing that either.
         - glance-tox-functional-oslo-tips:
             branches: master
-        - glance-tox-functional-py35-oslo-tips:
+        - glance-tox-functional-py36-oslo-tips:
             branches: master
         - glance-tox-py27-keystone-tips:
             branches: master
-        - glance-tox-py35-keystone-tips:
+        - glance-tox-py36-keystone-tips:
             branches: master
         - glance-tox-functional-keystone-tips:
             branches: master
-        - glance-tox-functional-py35-keystone-tips:
+        - glance-tox-functional-py36-keystone-tips:
             branches: master
         - glance-tox-py27-glance_store-tips:
             branches: master
-        - glance-tox-py35-glance_store-tips:
+        - glance-tox-py36-glance_store-tips:
             branches: master
         - glance-tox-functional-glance_store-tips:
             branches: master
-        - glance-tox-functional-py35-glance_store-tips:
+        - glance-tox-functional-py36-glance_store-tips:
             branches: master
         - glance-tox-py27-cursive-tips:
             branches: master
-        - glance-tox-py35-cursive-tips:
+        - glance-tox-py36-cursive-tips:
             branches: master
         - glance-tox-functional-cursive-tips:
             branches: master
-        - glance-tox-functional-py35-cursive-tips:
+        - glance-tox-functional-py36-cursive-tips:
             branches: master

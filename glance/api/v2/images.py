@@ -14,9 +14,13 @@
 #    under the License.
 
 import hashlib
+import os
 import re
 
+from castellan.common import exception as castellan_exception
+from castellan import key_manager
 import glance_store
+from glance_store import location
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils as json
@@ -30,6 +34,7 @@ from glance.api import common
 from glance.api import policy
 from glance.common import exception
 from glance.common import location_strategy
+from glance.common import store_utils
 from glance.common import timeutils
 from glance.common import utils
 from glance.common import wsgi
@@ -58,6 +63,8 @@ class ImagesController(object):
         self.store_api = store_api or glance_store
         self.gateway = glance.gateway.Gateway(self.db_api, self.store_api,
                                               self.notifier, self.policy)
+
+        self._key_manager = key_manager.API(CONF)
 
     @utils.mutating
     def create(self, req, image, extra_properties, tags):
@@ -329,6 +336,32 @@ class ImagesController(object):
                 msg = _("Property %s does not exist.")
                 raise webob.exc.HTTPConflict(msg % path_root)
 
+    def _delete_encryption_key(self, context, image):
+        props = image.extra_properties
+
+        cinder_encryption_key_id = props.get('cinder_encryption_key_id')
+        if cinder_encryption_key_id is None:
+            return
+
+        deletion_policy = props.get('cinder_encryption_key_deletion_policy',
+                                    '')
+        if deletion_policy != 'on_image_deletion':
+            return
+
+        try:
+            self._key_manager.delete(context, cinder_encryption_key_id)
+        except castellan_exception.Forbidden:
+            msg = ('Not allowed to delete encryption key %s' %
+                   cinder_encryption_key_id)
+            LOG.warn(msg)
+        except (castellan_exception.ManagedObjectNotFoundError, KeyError):
+            msg = 'Could not find encryption key %s' % cinder_encryption_key_id
+            LOG.warn(msg)
+        except castellan_exception.KeyManagerError:
+            msg = ('Failed to delete cinder encryption key %s' %
+                   cinder_encryption_key_id)
+            LOG.warn(msg)
+
     @utils.mutating
     def delete(self, req, image_id):
         image_repo = self.gateway.get_repo(req.context)
@@ -336,13 +369,42 @@ class ImagesController(object):
             image = image_repo.get(image_id)
 
             if image.status == 'uploading':
-                file_path = str(CONF.node_staging_uri + '/' + image.image_id)
                 if CONF.enabled_backends:
-                    self.store_api.delete(file_path, None)
+                    file_path = "%s/%s" % (getattr(
+                        CONF, 'os_glance_staging_store'
+                    ).filesystem_store_datadir, image_id)
+                    try:
+                        fn_call = glance_store.get_store_from_store_identifier
+                        staging_store = fn_call('os_glance_staging_store')
+                        loc = location.get_location_from_uri_and_backend(
+                            file_path, 'os_glance_staging_store')
+                        staging_store.delete(loc)
+                    except (glance_store.exceptions.NotFound,
+                            glance_store.exceptions.UnknownScheme):
+                        pass
                 else:
-                    self.store_api.delete_from_backend(file_path)
+                    file_path = str(
+                        CONF.node_staging_uri + '/' + image_id)[7:]
+                    if os.path.exists(file_path):
+                        try:
+                            LOG.debug(
+                                "After upload to the backend, deleting staged "
+                                "image data from %(fn)s", {'fn': file_path})
+                            os.unlink(file_path)
+                        except OSError as e:
+                            LOG.error(
+                                "After upload to backend, deletion of staged "
+                                "image data from %(fn)s has failed because "
+                                "[Errno %(en)d]", {'fn': file_path,
+                                                   'en': e.errno})
+                    else:
+                        LOG.warning(_(
+                            "After upload to backend, deletion of staged "
+                            "image data has failed because "
+                            "it cannot be found at %(fn)s"), {'fn': file_path})
 
             image.delete()
+            self._delete_encryption_key(req.context, image)
             image_repo.remove(image)
         except (glance_store.Forbidden, exception.Forbidden) as e:
             LOG.debug("User not permitted to delete image '%s'", image_id)
@@ -460,6 +522,9 @@ class ImagesController(object):
             raise webob.exc.HTTPConflict(explanation=msg)
 
         val_data = self._validate_validation_data(image, value)
+        # NOTE(abhishekk): get glance store based on location uri
+        if CONF.enabled_backends:
+            store_utils.update_store_in_locations(value, image.image_id)
 
         try:
             # NOTE(flwang): _locations_proxy's setattr method will check if
@@ -487,6 +552,9 @@ class ImagesController(object):
             raise webob.exc.HTTPConflict(explanation=msg)
 
         val_data = self._validate_validation_data(image, [value])
+        # NOTE(abhishekk): get glance store based on location uri
+        if CONF.enabled_backends:
+            store_utils.update_store_in_locations([value], image.image_id)
 
         pos = self._get_locations_op_pos(path_pos,
                                          len(image.locations), True)
@@ -676,7 +744,7 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         if not pointer.startswith('/'):
             msg = _('Pointer `%s` does not start with "/".') % pointer
             raise webob.exc.HTTPBadRequest(explanation=msg)
-        if re.search('/\s*?/', pointer[1:]):
+        if re.search(r'/\s*?/', pointer[1:]):
             msg = _('Pointer `%s` contains adjacent "/".') % pointer
             raise webob.exc.HTTPBadRequest(explanation=msg)
         if len(pointer) > 1 and pointer.endswith('/'):
@@ -831,7 +899,8 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
     def _get_filters(self, filters):
         visibility = filters.get('visibility')
         if visibility:
-            if visibility not in ['community', 'public', 'private', 'shared']:
+            if visibility not in ['community', 'public', 'private', 'shared',
+                                  'all']:
                 msg = _('Invalid visibility value: %s') % visibility
                 raise webob.exc.HTTPBadRequest(explanation=msg)
         changes_since = filters.get('changes-since')
@@ -1029,7 +1098,7 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
                 if locations:
                     stores = []
                     for loc in locations:
-                        backend = loc['metadata'].get('backend')
+                        backend = loc['metadata'].get('store')
                         if backend:
                             stores.append(backend)
 
@@ -1222,10 +1291,13 @@ def get_base_properties():
             'readOnly': True,
             'description': _('An image file url'),
         },
-        'backend': {
+        'stores': {
             'type': 'string',
             'readOnly': True,
-            'description': _('Backend store to upload image to'),
+            'description': _('Store in which image data resides.  Only '
+                             'present when the operator has enabled multiple '
+                             'stores.  May be a comma-separated list of store '
+                             'identifiers.'),
         },
         'schema': {
             'type': 'string',
