@@ -23,36 +23,8 @@ import six
 import webob
 
 from glance.common import exception
-from glance.common import store_utils
 from glance.common import utils
 from glance.tests import utils as test_utils
-
-
-class TestStoreUtils(test_utils.BaseTestCase):
-    """Test glance.common.store_utils module"""
-
-    def _test_update_store_in_location(self, metadata, store_id, expected):
-        locations = [{
-            'url': 'rbd://aaaaaaaa/images/id',
-            'metadata': metadata
-        }]
-        with mock.patch.object(
-                store_utils, '_get_store_id_from_uri') as mock_get_store_id:
-            mock_get_store_id.return_value = store_id
-            store_utils.update_store_in_locations(locations, mock.Mock())
-            self.assertEqual(locations[0]['metadata'].get('store'), expected)
-
-    def test_update_store_location_with_no_store(self):
-        self._test_update_store_in_location({}, 'rbd1', 'rbd1')
-
-    def test_update_store_location_with_different_store(self):
-        self._test_update_store_in_location({'store': 'rbd2'}, 'rbd1', 'rbd1')
-
-    def test_update_store_location_with_same_store(self):
-        self._test_update_store_in_location({'store': 'rbd1'}, 'rbd1', 'rbd1')
-
-    def test_update_store_location_with_store_none(self):
-        self._test_update_store_in_location({}, None, None)
 
 
 class TestUtils(test_utils.BaseTestCase):
@@ -94,35 +66,6 @@ class TestUtils(test_utils.BaseTestCase):
                 break
         meat = b''.join(chunks)
         self.assertEqual(b'aaabbbcccdddeeefffggghhh', meat)
-
-    def test_cooperative_reader_unbounded_read_on_iterator(self):
-        """Ensure cooperative reader is happy with empty iterators"""
-        data = b'abcdefgh'
-        data_list = [data[i:i + 1] * 3 for i in range(len(data))]
-        reader = utils.CooperativeReader(data_list)
-        self.assertEqual(
-            [chunk for chunk in iter(lambda: reader.read(), b'')],
-            [b'aaa', b'bbb', b'ccc', b'ddd', b'eee', b'fff', b'ggg', b'hhh'])
-
-    def test_cooperative_reader_on_iterator_with_buffer(self):
-        """Ensure cooperative reader is happy with empty iterators"""
-        data_list = [b'abcd', b'efgh']
-        reader = utils.CooperativeReader(data_list)
-        # read from part of a chunk, get the first item into the buffer
-        self.assertEqual(b'ab', reader.read(2))
-        # read purely from buffer
-        self.assertEqual(b'c', reader.read(1))
-        # unbounded read grabs the rest of the buffer
-        self.assertEqual(b'd', reader.read())
-        # then the whole next chunk
-        self.assertEqual(b'efgh', reader.read())
-        # past that, it's always empty
-        self.assertEqual(b'', reader.read())
-
-    def test_cooperative_reader_unbounded_read_on_empty_iterator(self):
-        """Ensure cooperative reader is happy with empty iterators"""
-        reader = utils.CooperativeReader([])
-        self.assertEqual(b'', reader.read())
 
     def test_cooperative_reader_of_iterator_stop_iteration_err(self):
         """Ensure cooperative reader supports iterator backends too"""

@@ -13,13 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-# TODO(smcginnis) update this once six has support for collections.abc
-# (https://github.com/benjaminp/six/pull/241) or clean up once we drop py2.7.
-try:
-    from collections.abc import MutableSequence
-except ImportError:
-    from collections import MutableSequence
-
+import collections
 import copy
 import functools
 
@@ -67,7 +61,7 @@ class ImageRepoProxy(glance.domain.proxy.Repo):
         for location in image.locations:
             if CONF.enabled_backends:
                 self.store_api.set_acls_for_multi_store(
-                    location['url'], location['metadata'].get('store'),
+                    location['url'], location['metadata']['backend'],
                     public=public, read_tenants=member_ids,
                     context=self.context
                 )
@@ -127,7 +121,7 @@ def _check_location_uri(context, store_api, store_utils, uri,
 def _check_image_location(context, store_api, store_utils, location):
     backend = None
     if CONF.enabled_backends:
-        backend = location['metadata'].get('store')
+        backend = location['metadata'].get('backend')
 
     _check_location_uri(context, store_api, store_utils, location['url'],
                         backend=backend)
@@ -139,7 +133,7 @@ def _set_image_size(context, image, locations):
         for location in locations:
             if CONF.enabled_backends:
                 size_from_backend = store.get_size_from_uri_and_backend(
-                    location['url'], location['metadata'].get('store'),
+                    location['url'], location['metadata'].get('backend'),
                     context=context)
             else:
                 size_from_backend = store.get_size_from_backend(
@@ -192,7 +186,7 @@ class ImageFactoryProxy(glance.domain.proxy.ImageFactory):
 
 
 @functools.total_ordering
-class StoreLocations(MutableSequence):
+class StoreLocations(collections.MutableSequence):
     """
     The proxy for store location property. It takes responsibility for::
 
@@ -496,7 +490,7 @@ class ImageProxy(glance.domain.proxy.Image):
                          self.image.image_id)
             except crypto_exception.InvalidSignature:
                 if CONF.enabled_backends:
-                    self.store_api.delete(location, loc_meta.get('store'),
+                    self.store_api.delete(location, loc_meta.get('backend'),
                                           context=self.context)
                 else:
                     self.store_api.delete_from_backend(location,
@@ -524,7 +518,7 @@ class ImageProxy(glance.domain.proxy.Image):
         err = None
         for loc in self.image.locations:
             try:
-                backend = loc['metadata'].get('store')
+                backend = loc['metadata'].get('backend')
                 if CONF.enabled_backends:
                     data, size = self.store_api.get(
                         loc['url'], backend, offset=offset,
@@ -564,16 +558,9 @@ class ImageMemberRepoProxy(glance.domain.proxy.Repo):
         if self.image.locations and not public:
             member_ids = [m.member_id for m in self.repo.list()]
             for location in self.image.locations:
-                if CONF.enabled_backends:
-                    self.store_api.set_acls_for_multi_store(
-                        location['url'], location['metadata'].get('store'),
-                        public=public, read_tenants=member_ids,
-                        context=self.context
-                    )
-                else:
-                    self.store_api.set_acls(location['url'], public=public,
-                                            read_tenants=member_ids,
-                                            context=self.context)
+                self.store_api.set_acls(location['url'], public=public,
+                                        read_tenants=member_ids,
+                                        context=self.context)
 
     def add(self, member):
         super(ImageMemberRepoProxy, self).add(member)

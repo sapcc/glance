@@ -75,8 +75,6 @@ correctly.
 - ``filesystem_store_datadirs`` This is used to point to multiple
   filesystem stores.
 - ``registry_host`` The URL to the Glance registry.
-- ``cache_prefetcher_interval`` The interval in seconds to run periodic
-  job 'cache_images'.
 
 Controlling the Growth of the Image Cache
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,20 +107,18 @@ The recommended practice is to use ``cron`` to fire ``glance-cache-cleaner``
 at a semi-regular interval.
 
 Prefetching Images into the Image Cache
----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In Train, Glance API has added a new periodic job ``cache_images`` which will
-run after every predefined time interval to fetch the queued images into cache.
-The default time interval for the ``cache_images`` periodic job is 300
-seconds. Admin/Operator can configure this interval in glance-api.conf file or
-glance-cache.conf file using ``cache_prefetcher_interval`` configuration
-option. The ``cache_images`` periodic job will only run if cache middleware
-is enabled in your cloud.
+Some installations have base (sometimes called "golden") images that are
+very commonly used to boot virtual machines. When spinning up a new API
+server, administrators may wish to prefetch these image files into the
+local image cache to ensure that reads of those popular image files come
+from a local cache.
 
 To queue an image for prefetching, you can use one of the following methods:
 
 * If the ``cache_manage`` middleware is enabled in the application pipeline,
-  you may call ``PUT /queued/<IMAGE_ID>`` to queue the image with
+  you may call ``PUT /queued-images/<IMAGE_ID>`` to queue the image with
   identifier ``<IMAGE_ID>``
 
 * Alternately, you can use the ``glance-cache-manage`` program to queue the
@@ -133,9 +129,9 @@ To queue an image for prefetching, you can use one of the following methods:
 
   This will queue the image with identifier ``<IMAGE_ID>`` for prefetching
 
-Once you have queued the images you wish to prefetch, the ``cache_images``
-periodic job will prefetch all queued images concurrently, logging the
-results of the fetch for each image.
+Once you have queued the images you wish to prefetch, call the
+``glance-cache-prefetcher`` executable, which will prefetch all queued images
+concurrently, logging the results of the fetch for each image.
 
 Finding Which Images are in the Image Cache
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,14 +146,6 @@ following methods:
 
 * Alternately, you can use the ``glance-cache-manage`` program. This program
   may be run from a different host than the host containing the image cache.
-  Example usage::
-
-   $ glance-cache-manage --host=<HOST> list-cached
-
-* In Glance, image cache is local to each node, hence image cache management
-  must be performed on each node locally. If OpenStack cloud is deployed with
-  HA (3/5/7 controllers) then while running the cache management it is
-  necessary to specify the HOST address using -H option.
   Example usage::
 
    $ glance-cache-manage --host=<HOST> list-cached

@@ -95,22 +95,15 @@ class _ImportToFS(task.Task):
         super(_ImportToFS, self).__init__(
             name='%s-ImportToFS-%s' % (task_type, task_id))
 
-        # NOTE(abhishekk): Use reserved 'os_glance_tasks_store' for tasks,
-        # the else part will be removed once old way of configuring store
-        # is deprecated.
-        if CONF.enabled_backends:
-            self.store = store_api.get_store_from_store_identifier(
-                'os_glance_tasks_store')
-        else:
-            if CONF.task.work_dir is None:
-                msg = (_("%(task_id)s of %(task_type)s not configured "
-                         "properly. Missing work dir: %(work_dir)s") %
-                       {'task_id': self.task_id,
-                        'task_type': self.task_type,
-                        'work_dir': CONF.task.work_dir})
-                raise exception.BadTaskConfiguration(msg)
+        if CONF.task.work_dir is None:
+            msg = (_("%(task_id)s of %(task_type)s not configured "
+                     "properly. Missing work dir: %(work_dir)s") %
+                   {'task_id': self.task_id,
+                    'task_type': self.task_type,
+                    'work_dir': CONF.task.work_dir})
+            raise exception.BadTaskConfiguration(msg)
 
-            self.store = self._build_store()
+        self.store = self._build_store()
 
     def _build_store(self):
         # NOTE(flaper87): Due to the nice glance_store api (#sarcasm), we're
@@ -192,10 +185,7 @@ class _ImportToFS(task.Task):
             return
 
         if os.path.exists(result.split("file://")[-1]):
-            if CONF.enabled_backends:
-                store_api.delete(result, 'os_glance_tasks_store')
-            else:
-                store_api.delete_from_backend(result)
+            store_api.delete_from_backend(result)
 
 
 class _DeleteFromFS(task.Task):
@@ -211,20 +201,16 @@ class _DeleteFromFS(task.Task):
 
         :param file_path: path to the file being deleted
         """
-        if CONF.enabled_backends:
-            store_api.delete(file_path, 'os_glance_tasks_store')
-        else:
-            store_api.delete_from_backend(file_path)
+        store_api.delete_from_backend(file_path)
 
 
 class _ImportToStore(task.Task):
 
-    def __init__(self, task_id, task_type, image_repo, uri, backend):
+    def __init__(self, task_id, task_type, image_repo, uri):
         self.task_id = task_id
         self.task_type = task_type
         self.image_repo = image_repo
         self.uri = uri
-        self.backend = backend
         super(_ImportToStore, self).__init__(
             name='%s-ImportToStore-%s' % (task_type, task_id))
 
@@ -325,8 +311,7 @@ class _ImportToStore(task.Task):
         # image_import.set_image_data(image, image_path, None)
         try:
             image_import.set_image_data(image,
-                                        file_path or self.uri, self.task_id,
-                                        backend=self.backend)
+                                        file_path or self.uri, self.task_id)
         except IOError as e:
             msg = (_('Uploading the image failed due to: %(exc)s') %
                    {'exc': encodeutils.exception_to_unicode(e)})
@@ -438,13 +423,11 @@ def get_flow(**kwargs):
     image_repo = kwargs.get('image_repo')
     image_factory = kwargs.get('image_factory')
     uri = kwargs.get('uri')
-    backend = kwargs.get('backend')
 
     flow = lf.Flow(task_type, retry=retry.AlwaysRevert()).add(
         _CreateImage(task_id, task_type, task_repo, image_repo, image_factory))
 
-    import_to_store = _ImportToStore(task_id, task_type, image_repo, uri,
-                                     backend)
+    import_to_store = _ImportToStore(task_id, task_type, image_repo, uri)
 
     try:
         # NOTE(flaper87): ImportToLocal and DeleteFromLocal shouldn't be here.

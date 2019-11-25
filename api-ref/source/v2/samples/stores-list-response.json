@@ -2,21 +2,16 @@
     "stores": [
         {
             "id":"reliable",
-            "description": "More expensive store with data redundancy"
+            "description": "Reliable filesystem store"
         },
         {
             "id":"fast",
-            "description": "Provides quick access to your image data",
+            "description": "Fast access to rbd store",
             "default": true
         },
         {
             "id":"cheap",
-            "description": "Less expensive store for seldom-used images"
-        },
-        {
-            "id":"special",
-            "description": "Need a plausible description here that doesn't expose the store type",
-            "read-only": true
+            "description": "Less expensive rbd store"
         }
     ]
 }

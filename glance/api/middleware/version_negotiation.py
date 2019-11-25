@@ -82,7 +82,6 @@ class VersionNegotiationFilter(wsgi.Middleware):
             allowed_versions['v2.5'] = 2
             allowed_versions['v2.6'] = 2
             allowed_versions['v2.7'] = 2
-            allowed_versions['v2.9'] = 2
             if CONF.enabled_backends:
                 allowed_versions['v2.8'] = 2
         return allowed_versions

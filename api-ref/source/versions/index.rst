@@ -24,12 +24,6 @@ Image Service Versions
 Version History
 ***************
 
-**Train changes**
-
-- version 2.9 is CURRENT
-- version 2.8 is SUPPORTED
-- version 2.7 is SUPPORTED
-
 **Rocky changes**
 
 - version 2.8 is EXPERIMENTAL

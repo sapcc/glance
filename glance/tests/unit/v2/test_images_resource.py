@@ -16,10 +16,8 @@
 import datetime
 import eventlet
 import hashlib
-import os
 import uuid
 
-from castellan.common import exception as castellan_exception
 import glance_store as store
 import mock
 from oslo_serialization import jsonutils
@@ -33,11 +31,9 @@ import webob
 import glance.api.v2.image_actions
 import glance.api.v2.images
 from glance.common import exception
-from glance.common import store_utils
 from glance import domain
 import glance.schema
 from glance.tests.unit import base
-from glance.tests.unit.keymgr import fake as fake_keymgr
 import glance.tests.unit.utils as unit_test_utils
 import glance.tests.utils as test_utils
 
@@ -52,7 +48,6 @@ UUID1 = 'c80a1a6c-bd1f-41c5-90ee-81afedb1d58d'
 UUID2 = 'a85abd86-55b3-4d5b-b0b4-5d0a6e6042fc'
 UUID3 = '971ec09a-8067-4bc8-a91f-ae3557f1c4c7'
 UUID4 = '6bbe7cc2-eae7-4c0f-b50d-a7160b0c6a86'
-UUID5 = '13c58ac4-210d-41ab-8cdb-1adfe4610019'
 
 TENANT1 = '6838eb7b-6ded-434a-882c-b344c77fe8df'
 TENANT2 = '2c014f32-55eb-467d-8fcb-4bd706012f81'
@@ -158,7 +153,6 @@ class TestImagesController(base.IsolatedUnitTest):
                                                          self.notifier,
                                                          self.store))
         self.controller.gateway.store_utils = self.store_utils
-        self.controller._key_manager = fake_keymgr.fake_api()
         store.create_stores()
 
     def _create_images(self):
@@ -171,9 +165,7 @@ class TestImagesController(base.IsolatedUnitTest):
                                     'metadata': {}, 'status': 'active'}],
                         disk_format='raw',
                         container_format='bare',
-                        status='active',
-                        created_at=DATETIME,
-                        updated_at=DATETIME),
+                        status='active'),
             _db_fixture(UUID2, owner=TENANT1, checksum=CHKSUM1,
                         os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH2,
                         name='2', size=512, virtual_size=2048,
@@ -183,19 +175,13 @@ class TestImagesController(base.IsolatedUnitTest):
                         status='active',
                         tags=['redhat', '64bit', 'power'],
                         properties={'hypervisor_type': 'kvm', 'foo': 'bar',
-                                    'bar': 'foo'},
-                        created_at=DATETIME + datetime.timedelta(seconds=1),
-                        updated_at=DATETIME + datetime.timedelta(seconds=1)),
+                                    'bar': 'foo'}),
             _db_fixture(UUID3, owner=TENANT3, checksum=CHKSUM1,
                         os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH2,
                         name='3', size=512, virtual_size=2048,
-                        visibility='public', tags=['windows', '64bit', 'x86'],
-                        created_at=DATETIME + datetime.timedelta(seconds=2),
-                        updated_at=DATETIME + datetime.timedelta(seconds=2)),
+                        visibility='public', tags=['windows', '64bit', 'x86']),
             _db_fixture(UUID4, owner=TENANT4, name='4',
-                        size=1024, virtual_size=3072,
-                        created_at=DATETIME + datetime.timedelta(seconds=3),
-                        updated_at=DATETIME + datetime.timedelta(seconds=3)),
+                        size=1024, virtual_size=3072),
         ]
         [self.db.image_create(None, image) for image in self.images]
 
@@ -1789,112 +1775,6 @@ class TestImagesController(base.IsolatedUnitTest):
     @mock.patch.object(glance.location.ImageRepoProxy, '_set_acls')
     @mock.patch.object(store, 'get_size_from_uri_and_backend')
     @mock.patch.object(store, 'get_size_from_backend')
-    def test_replace_locations_identify_associated_store(
-            self, mock_get_size, mock_get_size_uri, mock_set_acls,
-            mock_check_loc, mock_calc):
-        mock_calc.return_value = 1
-        mock_get_size.return_value = 1
-        mock_get_size_uri.return_value = 1
-        self.config(show_multiple_locations=True)
-        self.config(enabled_backends={'fake-store': 'http'})
-        image_id = str(uuid.uuid4())
-        self.images = [
-            _db_fixture(image_id, owner=TENANT1,
-                        name='1',
-                        disk_format='raw',
-                        container_format='bare',
-                        status='queued',
-                        checksum=None,
-                        os_hash_algo=None,
-                        os_hash_value=None),
-        ]
-        self.db.image_create(None, self.images[0])
-        request = unit_test_utils.get_fake_request()
-        new_location1 = {'url': '%s/fake_location_1' % BASE_URI,
-                         'metadata': {},
-                         'validation_data': {'checksum': CHKSUM,
-                                             'os_hash_algo': 'sha512',
-                                             'os_hash_value': MULTIHASH1}}
-        new_location2 = {'url': '%s/fake_location_2' % BASE_URI,
-                         'metadata': {},
-                         'validation_data': {'checksum': CHKSUM,
-                                             'os_hash_algo': 'sha512',
-                                             'os_hash_value': MULTIHASH1}}
-        changes = [{'op': 'replace', 'path': ['locations'],
-                    'value': [new_location1, new_location2]}]
-
-        with mock.patch.object(store_utils,
-                               '_get_store_id_from_uri') as mock_store:
-            mock_store.return_value = 'fake-store'
-            # ensure location metadata is updated
-            new_location1['metadata']['store'] = 'fake-store'
-            new_location1['metadata']['store'] = 'fake-store'
-
-            output = self.controller.update(request, image_id, changes)
-            self.assertEqual(2, len(output.locations))
-            self.assertEqual(image_id, output.image_id)
-            self.assertEqual(new_location1, output.locations[0])
-            self.assertEqual(new_location2, output.locations[1])
-            self.assertEqual('active', output.status)
-            self.assertEqual(CHKSUM, output.checksum)
-            self.assertEqual('sha512', output.os_hash_algo)
-            self.assertEqual(MULTIHASH1, output.os_hash_value)
-
-    @mock.patch.object(glance.quota, '_calc_required_size')
-    @mock.patch.object(glance.location, '_check_image_location')
-    @mock.patch.object(glance.location.ImageRepoProxy, '_set_acls')
-    @mock.patch.object(store, 'get_size_from_uri_and_backend')
-    @mock.patch.object(store, 'get_size_from_backend')
-    def test_replace_locations_unknon_locations(
-            self, mock_get_size, mock_get_size_uri, mock_set_acls,
-            mock_check_loc, mock_calc):
-        mock_calc.return_value = 1
-        mock_get_size.return_value = 1
-        mock_get_size_uri.return_value = 1
-        self.config(show_multiple_locations=True)
-        self.config(enabled_backends={'fake-store': 'http'})
-        image_id = str(uuid.uuid4())
-        self.images = [
-            _db_fixture(image_id, owner=TENANT1,
-                        name='1',
-                        disk_format='raw',
-                        container_format='bare',
-                        status='queued',
-                        checksum=None,
-                        os_hash_algo=None,
-                        os_hash_value=None),
-        ]
-        self.db.image_create(None, self.images[0])
-        request = unit_test_utils.get_fake_request()
-        new_location1 = {'url': 'unknown://whocares',
-                         'metadata': {},
-                         'validation_data': {'checksum': CHKSUM,
-                                             'os_hash_algo': 'sha512',
-                                             'os_hash_value': MULTIHASH1}}
-        new_location2 = {'url': 'unknown://whatever',
-                         'metadata': {'store': 'unkstore'},
-                         'validation_data': {'checksum': CHKSUM,
-                                             'os_hash_algo': 'sha512',
-                                             'os_hash_value': MULTIHASH1}}
-        changes = [{'op': 'replace', 'path': ['locations'],
-                    'value': [new_location1, new_location2]}]
-
-        output = self.controller.update(request, image_id, changes)
-        self.assertEqual(2, len(output.locations))
-        self.assertEqual(image_id, output.image_id)
-        self.assertEqual('active', output.status)
-        self.assertEqual(CHKSUM, output.checksum)
-        self.assertEqual('sha512', output.os_hash_algo)
-        self.assertEqual(MULTIHASH1, output.os_hash_value)
-        # ensure location metadata is same
-        self.assertEqual(new_location1, output.locations[0])
-        self.assertEqual(new_location2, output.locations[1])
-
-    @mock.patch.object(glance.quota, '_calc_required_size')
-    @mock.patch.object(glance.location, '_check_image_location')
-    @mock.patch.object(glance.location.ImageRepoProxy, '_set_acls')
-    @mock.patch.object(store, 'get_size_from_uri_and_backend')
-    @mock.patch.object(store, 'get_size_from_backend')
     def test_add_location_new_validation_data_on_active(self,
                                                         mock_get_size,
                                                         mock_get_size_uri,
@@ -1925,12 +1805,11 @@ class TestImagesController(base.IsolatedUnitTest):
                                             'os_hash_value': MULTIHASH1}}
         changes = [{'op': 'add', 'path': ['locations', '-'],
                     'value': new_location}]
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              "may only be provided when image status "
-                              "is 'queued'",
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                "may only be provided when image status "
+                                "is 'queued'",
+                                self.controller.update,
+                                request, image_id, changes)
 
     @mock.patch.object(glance.quota, '_calc_required_size')
     @mock.patch.object(glance.location, '_check_image_location')
@@ -1967,11 +1846,10 @@ class TestImagesController(base.IsolatedUnitTest):
                                             'os_hash_value': MULTIHASH2}}
         changes = [{'op': 'replace', 'path': ['locations'],
                     'value': [new_location]}]
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              "already set with a different value",
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                "already set with a different value",
+                                self.controller.update,
+                                request, image_id, changes)
 
     @mock.patch.object(glance.quota, '_calc_required_size')
     @mock.patch.object(glance.location, '_check_image_location')
@@ -2007,82 +1885,6 @@ class TestImagesController(base.IsolatedUnitTest):
         self.assertEqual(1, len(output.locations))
         self.assertEqual(new_location, output.locations[0])
         self.assertEqual('active', output.status)
-
-    @mock.patch.object(glance.quota, '_calc_required_size')
-    @mock.patch.object(glance.location, '_check_image_location')
-    @mock.patch.object(glance.location.ImageRepoProxy, '_set_acls')
-    @mock.patch.object(store, 'get_size_from_uri_and_backend')
-    @mock.patch.object(store, 'get_size_from_backend')
-    def test_add_location_identify_associated_store(
-            self, mock_get_size, mock_get_size_uri, mock_set_acls,
-            mock_check_loc, mock_calc):
-        mock_calc.return_value = 1
-        mock_get_size.return_value = 1
-        mock_get_size_uri.return_value = 1
-        self.config(show_multiple_locations=True)
-        self.config(enabled_backends={'fake-store': 'http'})
-        image_id = str(uuid.uuid4())
-        self.images = [
-            _db_fixture(image_id, owner=TENANT1, checksum=CHKSUM,
-                        name='1',
-                        disk_format='raw',
-                        container_format='bare',
-                        status='queued'),
-        ]
-        self.db.image_create(None, self.images[0])
-        request = unit_test_utils.get_fake_request()
-        new_location = {'url': '%s/fake_location_1' % BASE_URI,
-                        'metadata': {}}
-        changes = [{'op': 'add', 'path': ['locations', '-'],
-                    'value': new_location}]
-        with mock.patch.object(store_utils,
-                               '_get_store_id_from_uri') as mock_store:
-            mock_store.return_value = 'fake-store'
-            output = self.controller.update(request, image_id, changes)
-
-            self.assertEqual(image_id, output.image_id)
-            self.assertEqual(1, len(output.locations))
-            self.assertEqual('active', output.status)
-            # ensure location metadata is updated
-            new_location['metadata']['store'] = 'fake-store'
-            self.assertEqual(new_location, output.locations[0])
-
-    @mock.patch.object(glance.quota, '_calc_required_size')
-    @mock.patch.object(glance.location, '_check_image_location')
-    @mock.patch.object(glance.location.ImageRepoProxy, '_set_acls')
-    @mock.patch.object(store, 'get_size_from_uri_and_backend')
-    @mock.patch.object(store, 'get_size_from_backend')
-    def test_add_location_unknown_locations(
-            self, mock_get_size, mock_get_size_uri, mock_set_acls,
-            mock_check_loc, mock_calc):
-        mock_calc.return_value = 1
-        mock_get_size.return_value = 1
-        mock_get_size_uri.return_value = 1
-        self.config(show_multiple_locations=True)
-        self.config(enabled_backends={'fake-store': 'http'})
-        image_id = str(uuid.uuid4())
-
-        self.images = [
-            _db_fixture(image_id, owner=TENANT1, checksum=CHKSUM,
-                        name='1',
-                        disk_format='raw',
-                        container_format='bare',
-                        status='queued'),
-        ]
-        self.db.image_create(None, self.images[0])
-
-        new_location = {'url': 'unknown://whocares', 'metadata': {}}
-        request = unit_test_utils.get_fake_request()
-        changes = [{'op': 'add', 'path': ['locations', '-'],
-                    'value': new_location}]
-
-        output = self.controller.update(request, image_id, changes)
-
-        self.assertEqual(image_id, output.image_id)
-        self.assertEqual('active', output.status)
-        self.assertEqual(1, len(output.locations))
-        # ensure location metadata is same
-        self.assertEqual(new_location, output.locations[0])
 
     @mock.patch.object(glance.quota, '_calc_required_size')
     @mock.patch.object(glance.location, '_check_image_location')
@@ -2126,57 +1928,52 @@ class TestImagesController(base.IsolatedUnitTest):
             'os_hash_algo': 'sha512',
             'os_hash_value': MULTIHASH1,
         }
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              'checksum .* is not a valid hexadecimal value',
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                'checksum .* is not a valid hexadecimal value',
+                                self.controller.update,
+                                request, image_id, changes)
 
         changes[0]['value']['validation_data'] = {
             'checksum': '0123456789abcdef',
             'os_hash_algo': 'sha512',
             'os_hash_value': MULTIHASH1,
         }
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              'checksum .* is not the correct size',
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                'checksum .* is not the correct size',
+                                self.controller.update,
+                                request, image_id, changes)
 
         changes[0]['value']['validation_data'] = {
             'checksum': CHKSUM,
             'os_hash_algo': 'sha256',
             'os_hash_value': MULTIHASH1,
         }
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              'os_hash_algo must be sha512',
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                'os_hash_algo must be sha512',
+                                self.controller.update,
+                                request, image_id, changes)
 
         changes[0]['value']['validation_data'] = {
             'checksum': CHKSUM,
             'os_hash_algo': 'sha512',
             'os_hash_value': 'not a hex value',
         }
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              'os_hash_value .* is not a valid hexadecimal '
-                              'value',
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                'os_hash_value .* is not a valid hexadecimal '
+                                'value',
+                                self.controller.update,
+                                request, image_id, changes)
 
         changes[0]['value']['validation_data'] = {
             'checksum': CHKSUM,
             'os_hash_algo': 'sha512',
             'os_hash_value': '0123456789abcdef',
         }
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              'os_hash_value .* is not the correct size '
-                              'for sha512',
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                'os_hash_value .* is not the correct size '
+                                'for sha512',
+                                self.controller.update,
+                                request, image_id, changes)
 
     @mock.patch.object(glance.quota, '_calc_required_size')
     @mock.patch.object(glance.location, '_check_image_location')
@@ -2257,11 +2054,10 @@ class TestImagesController(base.IsolatedUnitTest):
                                             'os_hash_value': MULTIHASH2}}
         changes = [{'op': 'add', 'path': ['locations', '-'],
                     'value': new_location}]
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPConflict,
-                              "already set with a different value",
-                              self.controller.update,
-                              request, image_id, changes)
+        self.assertRaisesRegexp(webob.exc.HTTPConflict,
+                                "already set with a different value",
+                                self.controller.update,
+                                request, image_id, changes)
 
     def _test_update_locations_status(self, image_status, update):
         self.config(show_multiple_locations=True)
@@ -2831,42 +2627,17 @@ class TestImagesController(base.IsolatedUnitTest):
                           request, UUID1)
 
     def test_delete_uploading_status_image(self):
-        """Ensure uploading image is deleted (LP bug #1733289)
-        Ensure image stuck in uploading state is deleted (LP bug #1836140)
-        """
+        """Ensure status of uploading image is updated (LP bug #1733289)"""
         request = unit_test_utils.get_fake_request(is_admin=True)
         image = self.db.image_create(request.context, {'status': 'uploading'})
         image_id = image['id']
-        with mock.patch.object(os.path, 'exists') as mock_exists:
-            mock_exists.return_value = True
-            with mock.patch.object(os, "unlink") as mock_unlik:
-                self.controller.delete(request, image_id)
+        with mock.patch.object(self.store,
+                               'delete_from_backend') as mock_store:
+            self.controller.delete(request, image_id)
 
-                self.assertEqual(1, mock_exists.call_count)
-                self.assertEqual(1, mock_unlik.call_count)
+        # Ensure delete_from_backend is called
+        self.assertEqual(1, mock_store.call_count)
 
-        # Ensure that image is deleted
-        image = self.db.image_get(request.context, image_id,
-                                  force_show_deleted=True)
-        self.assertTrue(image['deleted'])
-        self.assertEqual('deleted', image['status'])
-
-    def test_deletion_of_staging_data_failed(self):
-        """Ensure uploading image is deleted (LP bug #1733289)
-        Ensure image stuck in uploading state is deleted (LP bug #1836140)
-        """
-        request = unit_test_utils.get_fake_request(is_admin=True)
-        image = self.db.image_create(request.context, {'status': 'uploading'})
-        image_id = image['id']
-        with mock.patch.object(os.path, 'exists') as mock_exists:
-            mock_exists.return_value = False
-            with mock.patch.object(os, "unlink") as mock_unlik:
-                self.controller.delete(request, image_id)
-
-                self.assertEqual(1, mock_exists.call_count)
-                self.assertEqual(0, mock_unlik.call_count)
-
-        # Ensure that image is deleted
         image = self.db.image_get(request.context, image_id,
                                   force_show_deleted=True)
         self.assertTrue(image['deleted'])
@@ -2906,199 +2677,6 @@ class TestImagesController(base.IsolatedUnitTest):
                               self.controller.import_image,
                               request, UUID4, {'method': {'name':
                                                           'glance-direct'}})
-
-    def test_delete_encryption_key_no_encryption_key(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties={})
-        self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key_no_deletion_policy(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key_do_not_delete(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-            'cinder_encryption_key_deletion_policy': 'do_not_delete',
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key_forbidden(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        with mock.patch.object(self.controller._key_manager, 'delete',
-                               side_effect=castellan_exception.Forbidden):
-            self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key_not_found(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        with mock.patch.object(self.controller._key_manager, 'delete',
-                               side_effect=castellan_exception.ManagedObjectNotFoundError):  # noqa
-            self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key_error(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        with mock.patch.object(self.controller._key_manager, 'delete',
-                               side_effect=castellan_exception.KeyManagerError):  # noqa
-            self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is still there
-        key = self.controller._key_manager.get(request.context,
-                                               fake_encryption_key)
-        self.assertEqual(fake_encryption_key, key._id)
-
-    def test_delete_encryption_key(self):
-        request = unit_test_utils.get_fake_request()
-        fake_encryption_key = self.controller._key_manager.store(
-            request.context, mock.Mock())
-        props = {
-            'cinder_encryption_key_id': fake_encryption_key,
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        image = _domain_fixture(
-            UUID2, name='image-2', owner=TENANT2,
-            checksum='ca425b88f047ce8ec45ee90e813ada91',
-            os_hash_algo=FAKEHASHALGO, os_hash_value=MULTIHASH1,
-            created_at=DATETIME, updated_at=DATETIME, size=1024,
-            virtual_size=3072, extra_properties=props)
-        self.controller._delete_encryption_key(request.context, image)
-        # Make sure the encrytion key is gone
-        self.assertRaises(KeyError,
-                          self.controller._key_manager.get,
-                          request.context, fake_encryption_key)
-
-    def test_delete_no_encryption_key_id(self):
-        request = unit_test_utils.get_fake_request()
-        extra_props = {
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        created_image = self.controller.create(request,
-                                               image={'name': 'image-1'},
-                                               extra_properties=extra_props,
-                                               tags=[])
-        image_id = created_image.image_id
-        self.controller.delete(request, image_id)
-        # Ensure that image is deleted
-        image = self.db.image_get(request.context, image_id,
-                                  force_show_deleted=True)
-        self.assertTrue(image['deleted'])
-        self.assertEqual('deleted', image['status'])
-
-    def test_delete_invalid_encryption_key_id(self):
-        request = unit_test_utils.get_fake_request()
-        extra_props = {
-            'cinder_encryption_key_id': 'invalid',
-            'cinder_encryption_key_deletion_policy': 'on_image_deletion',
-        }
-        created_image = self.controller.create(request,
-                                               image={'name': 'image-1'},
-                                               extra_properties=extra_props,
-                                               tags=[])
-        image_id = created_image.image_id
-        self.controller.delete(request, image_id)
-        # Ensure that image is deleted
-        image = self.db.image_get(request.context, image_id,
-                                  force_show_deleted=True)
-        self.assertTrue(image['deleted'])
-        self.assertEqual('deleted', image['status'])
-
-    def test_delete_invalid_encryption_key_deletion_policy(self):
-        request = unit_test_utils.get_fake_request()
-        extra_props = {
-            'cinder_encryption_key_deletion_policy': 'invalid',
-        }
-        created_image = self.controller.create(request,
-                                               image={'name': 'image-1'},
-                                               extra_properties=extra_props,
-                                               tags=[])
-        image_id = created_image.image_id
-        self.controller.delete(request, image_id)
-        # Ensure that image is deleted
-        image = self.db.image_get(request.context, image_id,
-                                  force_show_deleted=True)
-        self.assertTrue(image['deleted'])
-        self.assertEqual('deleted', image['status'])
 
 
 class TestImagesControllerPolicies(base.IsolatedUnitTest):
@@ -3417,19 +2995,17 @@ class TestImagesDeserializer(test_utils.BaseTestCase):
             'bogus_key': 'bogus_value',
         }
         request.body = jsonutils.dump_as_bytes(changes)
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPBadRequest,
-                              'Additional properties are not allowed',
-                              self.deserializer.update, request)
+        self.assertRaisesRegexp(webob.exc.HTTPBadRequest,
+                                'Additional properties are not allowed',
+                                self.deserializer.update, request)
 
         changes[0]['value']['validation_data'] = {
             'checksum': CHKSUM,
         }
         request.body = jsonutils.dump_as_bytes(changes)
-        six.assertRaisesRegex(self,
-                              webob.exc.HTTPBadRequest,
-                              'os_hash.* is a required property',
-                              self.deserializer.update, request)
+        self.assertRaisesRegexp(webob.exc.HTTPBadRequest,
+                                'os_hash.* is a required property',
+                                self.deserializer.update, request)
 
     def test_update(self):
         request = self._get_fake_patch_request()
@@ -5020,8 +4596,7 @@ class TestImageSchemaFormatConfiguration(test_utils.BaseTestCase):
 
     def test_default_container_formats(self):
         schema = glance.api.v2.images.get_schema()
-        expected = [None, 'ami', 'ari', 'aki', 'bare', 'ovf', 'ova', 'docker',
-                    'compressed']
+        expected = [None, 'ami', 'ari', 'aki', 'bare', 'ovf', 'ova', 'docker']
         actual = schema.properties['container_format']['enum']
         self.assertEqual(expected, actual)
 
@@ -5074,8 +4649,7 @@ class TestMultiImagesController(base.MultiIsolatedUnitTest):
                                     'metadata': {}, 'status': 'active'}],
                         disk_format='raw',
                         container_format='bare',
-                        status='active',
-                        created_at=DATETIME),
+                        status='active'),
             _db_fixture(UUID2, owner=TENANT1, checksum=CHKSUM1,
                         name='2', size=512, virtual_size=2048,
                         visibility='public',
@@ -5084,31 +4658,12 @@ class TestMultiImagesController(base.MultiIsolatedUnitTest):
                         status='active',
                         tags=['redhat', '64bit', 'power'],
                         properties={'hypervisor_type': 'kvm', 'foo': 'bar',
-                                    'bar': 'foo'},
-                        locations=[{'url': 'file://%s/%s' % (self.test_dir,
-                                                             UUID2),
-                                    'metadata': {}, 'status': 'active'}],
-                        created_at=DATETIME + datetime.timedelta(seconds=1)),
-            _db_fixture(UUID5, owner=TENANT3, checksum=CHKSUM1,
-                        name='2', size=512, virtual_size=2048,
-                        visibility='public',
-                        disk_format='raw',
-                        container_format='bare',
-                        status='active',
-                        tags=['redhat', '64bit', 'power'],
-                        properties={'hypervisor_type': 'kvm', 'foo': 'bar',
-                                    'bar': 'foo'},
-                        locations=[{'url': 'file://%s/%s' % (self.test_dir,
-                                                             UUID2),
-                                    'metadata': {}, 'status': 'active'}],
-                        created_at=DATETIME + datetime.timedelta(seconds=1)),
+                                    'bar': 'foo'}),
             _db_fixture(UUID3, owner=TENANT3, checksum=CHKSUM1,
                         name='3', size=512, virtual_size=2048,
-                        visibility='public', tags=['windows', '64bit', 'x86'],
-                        created_at=DATETIME + datetime.timedelta(seconds=2)),
+                        visibility='public', tags=['windows', '64bit', 'x86']),
             _db_fixture(UUID4, owner=TENANT4, name='4',
-                        size=1024, virtual_size=3072,
-                        created_at=DATETIME + datetime.timedelta(seconds=3)),
+                        size=1024, virtual_size=3072),
         ]
         [self.db.image_create(None, image) for image in self.images]
 
@@ -5136,36 +4691,6 @@ class TestMultiImagesController(base.MultiIsolatedUnitTest):
                           self.controller.import_image,
                           request, UUID1,
                           {'method': {'name': 'glance-direct'}})
-
-    def test_image_lazy_loading_store(self):
-        # assert existing image does not have store in metadata
-        existing_image = self.images[1]
-        self.assertNotIn('store', existing_image['locations'][0]['metadata'])
-
-        # assert: store information will be added by lazy loading
-        request = unit_test_utils.get_fake_request()
-        with mock.patch.object(store_utils,
-                               "_get_store_id_from_uri") as mock_uri:
-            mock_uri.return_value = "fast"
-            image = self.controller.show(request, UUID2)
-            for loc in image.locations:
-                self.assertIn('store', loc['metadata'])
-
-    def test_image_lazy_loading_store_different_owner(self):
-        # assert existing image does not have store in metadata
-        existing_image = self.images[2]
-        self.assertNotIn('store', existing_image['locations'][0]['metadata'])
-
-        # assert: store information will be added by lazy loading even if owner
-        # is different
-        request = unit_test_utils.get_fake_request()
-        request.headers.update({'X-Tenant_id': TENANT1})
-        with mock.patch.object(store_utils,
-                               "_get_store_id_from_uri") as mock_uri:
-            mock_uri.return_value = "fast"
-            image = self.controller.show(request, UUID5)
-            for loc in image.locations:
-                self.assertIn('store', loc['metadata'])
 
     def test_image_import_invalid_backend_in_request_header(self):
         request = unit_test_utils.get_fake_request()

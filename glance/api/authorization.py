@@ -15,31 +15,10 @@
 #    under the License.
 
 import copy
-import functools
-
-from oslo_config import cfg
-from oslo_log import log as logging
 
 from glance.common import exception
-from glance.common import store_utils
 import glance.domain.proxy
 from glance.i18n import _
-
-CONF = cfg.CONF
-LOG = logging.getLogger(__name__)
-
-
-def lazy_update_store_info(func):
-    """Update store information in location metadata"""
-    @functools.wraps(func)
-    def wrapped(context, image, **kwargs):
-        if CONF.enabled_backends:
-            store_utils.update_store_in_locations(
-                image.locations, image.image_id)
-
-        return func(context, image, **kwargs)
-
-    return wrapped
 
 
 def is_image_mutable(context, image):
@@ -53,7 +32,6 @@ def is_image_mutable(context, image):
     return image.owner == context.owner
 
 
-@lazy_update_store_info
 def proxy_image(context, image):
     if is_image_mutable(context, image):
         return ImageProxy(image, context)

@@ -263,12 +263,6 @@ class TestImageRepo(test_utils.BaseTestCase):
         image_ids = set([i.image_id for i in images])
         self.assertEqual(set([UUID2]), image_ids)
 
-    def test_list_all_images(self):
-        filters = {'visibility': 'all'}
-        images = self.image_repo.list(filters=filters)
-        image_ids = set([i.image_id for i in images])
-        self.assertEqual(set([UUID1, UUID2, UUID3]), image_ids)
-
     def test_list_with_checksum_filter_single_image(self):
         filters = {'checksum': CHECKSUM}
         images = self.image_repo.list(filters=filters)
@@ -377,7 +371,6 @@ class TestImageRepo(test_utils.BaseTestCase):
         original_update_time = image.updated_at
         image.name = 'foo'
         image.tags = ['king', 'kong']
-        self.delay_inaccurate_clock()
         self.image_repo.save(image)
         current_update_time = image.updated_at
         self.assertGreater(current_update_time, original_update_time)
@@ -397,7 +390,6 @@ class TestImageRepo(test_utils.BaseTestCase):
     def test_remove_image(self):
         image = self.image_repo.get(UUID1)
         previous_update_time = image.updated_at
-        self.delay_inaccurate_clock()
         self.image_repo.remove(image)
         self.assertGreater(image.updated_at, previous_update_time)
         self.assertRaises(exception.ImageNotFound, self.image_repo.get, UUID1)
@@ -758,7 +750,6 @@ class TestTaskRepo(test_utils.BaseTestCase):
     def test_save_task(self):
         task = self.task_repo.get(UUID1)
         original_update_time = task.updated_at
-        self.delay_inaccurate_clock()
         self.task_repo.save(task)
         current_update_time = task.updated_at
         self.assertGreater(current_update_time, original_update_time)

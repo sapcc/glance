@@ -16,13 +16,7 @@
 
 """Policy Engine For Glance"""
 
-# TODO(smcginnis) update this once six has support for collections.abc
-# (https://github.com/benjaminp/six/pull/241) or clean up once we drop py2.7.
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
-
+import collections
 import copy
 
 from oslo_config import cfg
@@ -36,7 +30,6 @@ from glance.i18n import _
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
-_ENFORCER = None
 
 DEFAULT_RULES = policy.Rules.from_dict({
     'context_is_admin': 'role:admin',
@@ -94,14 +87,6 @@ class Enforcer(policy.Enforcer):
            :returns: A non-False value if context role is admin.
         """
         return self.check(context, 'context_is_admin', context.to_dict())
-
-
-def get_enforcer():
-    CONF([], project='glance')
-    global _ENFORCER
-    if _ENFORCER is None:
-        _ENFORCER = Enforcer()
-    return _ENFORCER
 
 
 class ImageRepoProxy(glance.domain.proxy.Repo):
@@ -394,7 +379,7 @@ class TaskFactoryProxy(glance.domain.proxy.TaskFactory):
             task_proxy_kwargs=proxy_kwargs)
 
 
-class ImageTarget(Mapping):
+class ImageTarget(collections.Mapping):
     SENTINEL = object()
 
     def __init__(self, target):

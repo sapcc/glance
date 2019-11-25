@@ -36,7 +36,6 @@ from glance.common import exception
 from glance.common import utils
 from glance.common import wsgi
 from glance import i18n
-from glance.image_cache import prefetcher
 from glance.tests import utils as test_utils
 
 
@@ -562,25 +561,13 @@ class JSONRequestDeserializerTest(test_utils.BaseTestCase):
 
 
 class ServerTest(test_utils.BaseTestCase):
-    @mock.patch.object(prefetcher, 'Prefetcher')
-    def test_create_pool(self, mock_prefetcher):
+    def test_create_pool(self):
         """Ensure the wsgi thread pool is an eventlet.greenpool.GreenPool."""
         actual = wsgi.Server(threads=1).create_pool()
         self.assertIsInstance(actual, eventlet.greenpool.GreenPool)
 
-    @mock.patch.object(prefetcher, 'Prefetcher')
     @mock.patch.object(wsgi.Server, 'configure_socket')
-    def test_reserved_stores_not_allowed(self, mock_configure_socket,
-                                         mock_prefetcher):
-        """Ensure the reserved stores are not allowed"""
-        enabled_backends = {'os_glance_file_store': 'file'}
-        self.config(enabled_backends=enabled_backends)
-        server = wsgi.Server(threads=1, initialize_glance_store=True)
-        self.assertRaises(RuntimeError, server.configure)
-
-    @mock.patch.object(prefetcher, 'Prefetcher')
-    @mock.patch.object(wsgi.Server, 'configure_socket')
-    def test_http_keepalive(self, mock_configure_socket, mock_prefetcher):
+    def test_http_keepalive(self, mock_configure_socket):
         self.config(http_keepalive=False)
         self.config(workers=0)
 
@@ -601,12 +588,8 @@ class ServerTest(test_utils.BaseTestCase):
                                                 keepalive=False,
                                                 socket_timeout=900)
 
-    @mock.patch.object(prefetcher, 'Prefetcher')
-    def test_number_of_workers_posix(self, mock_prefetcher):
+    def test_number_of_workers(self):
         """Ensure the number of workers matches num cpus limited to 8."""
-        if os.name == 'nt':
-            raise self.skipException("Unsupported platform.")
-
         def pid():
             i = 1
             while True:
@@ -710,8 +693,7 @@ class GetSocketTestCase(test_utils.BaseTestCase):
         wsgi.CONF.ca_file = '/etc/ssl/ca_cert'
         wsgi.CONF.tcp_keepidle = 600
 
-    @mock.patch.object(prefetcher, 'Prefetcher')
-    def test_correct_configure_socket(self, mock_prefetcher):
+    def test_correct_configure_socket(self):
         mock_socket = mock.Mock()
         self.useFixture(fixtures.MonkeyPatch(
             'glance.common.wsgi.ssl.wrap_socket',

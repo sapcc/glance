@@ -78,8 +78,7 @@ class TestImportTask(test_utils.BaseTestCase):
                     group='taskflow_executor')
         glance_store.create_stores(CONF)
 
-    @mock.patch.object(os, 'unlink')
-    def test_convert_success(self, mock_unlink):
+    def test_convert_success(self):
         image_convert = convert._Convert(self.task.task_id,
                                          self.task_type,
                                          self.img_repo)

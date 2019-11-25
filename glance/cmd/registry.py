@@ -20,10 +20,6 @@
 """
 Reference implementation server for Glance Registry
 """
-
-import os
-import sys
-
 import eventlet
 # NOTE(jokke): As per the eventlet commit
 # b756447bab51046dfc6f1e0e299cc997ab343701 there's circular import happening
@@ -31,15 +27,12 @@ import eventlet
 # before calling monkey_patch(). This is solved in eventlet 0.22.0 but we
 # need to address it before that is widely used around.
 eventlet.hubs.get_hub()
+eventlet.patcher.monkey_patch()
 
-if os.name == 'nt':
-    # eventlet monkey patching the os module causes subprocess.Popen to fail
-    # on Windows when using pipes due to missing non-blocking IO support.
-    eventlet.patcher.monkey_patch(os=False)
-else:
-    eventlet.patcher.monkey_patch()
+import os
+import sys
 
-from oslo_reports import guru_meditation_report as gmr
+
 from oslo_utils import encodeutils
 
 # If ../glance/__init__.py exists, add ../ to Python search path, so that
@@ -57,12 +50,10 @@ import osprofiler.initializer
 from glance.common import config
 from glance.common import wsgi
 from glance import notifier
-from glance import version
 
 CONF = cfg.CONF
 CONF.import_group("profiler", "glance.common.wsgi")
 logging.register_options(CONF)
-wsgi.register_cli_opts()
 
 
 def main():
@@ -71,7 +62,6 @@ def main():
         config.set_config_defaults()
         wsgi.set_eventlet_hub()
         logging.setup(CONF, 'glance')
-        gmr.TextGuruMeditation.setup_autorun(version)
         notifier.set_defaults()
 
         if CONF.profiler.enabled:

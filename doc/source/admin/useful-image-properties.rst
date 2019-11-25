@@ -50,11 +50,6 @@ Some important points to keep in mind:
   <https://docs.openstack.org/nova/latest/configuration/config.html>`_
   section of the Nova Configuration Guide for more information.
 
-* Some properties recognized by Nova may have no effect unless a corresponding
-  property is enabled in the server flavor.  For example, the ``hw_rng_model``
-  image property has no effect unless the Nova flavor has been configured to
-  have ``hw_rng:allowed`` set to True in the flavor's extra_specs.
-
 * In a mixed hypervisor environment, the Compute Service uses the
   ``hypervisor_type`` image property to match images to the correct hypervisor
   type.
@@ -231,15 +226,6 @@ Here is a list of useful image properties and the values they expect.
        * ``disabled`` or ``optional`` - (default) Disable the Secure Boot
          feature.
    * - All
-     - ``os_shutdown_timeout``
-     - By default, guests will be given 60 seconds to perform a graceful
-       shutdown. After that, the VM is powered off. This property allows
-       overriding the amount of time (unit: seconds) to allow a guest OS to
-       cleanly shut down before power off. A value of 0 (zero) means the guest
-       will be powered off immediately with no opportunity for guest OS
-       clean-up.
-     - Integer value (in seconds) with a minimum of 0 (zero). Default is 60.
-   * - All
      - ``ramdisk_id``
      - The ID of image stored in the Image service that should be used as the
        ramdisk when booting an AMI-style image.
@@ -333,33 +319,9 @@ Here is a list of useful image properties and the values they expect.
          architecture, but not enough cores with free thread siblings are
          available, then scheduling fails.
    * - libvirt API driver
-     - ``hw_cdrom_bus``
-     - Specifies the type of disk controller to attach CD-ROM devices to.
-     - As for ``hw_disk_bus``.
-   * - libvirt API driver
      - ``hw_disk_bus``
      - Specifies the type of disk controller to attach disk devices to.
-     - Options depend on the value of `nova's virt_type config option
-       <https://docs.openstack.org/nova/latest/configuration/config.html#libvirt.virt_type>`_:
-
-       * For ``qemu`` and ``kvm``: one of ``scsi``, ``virtio``,
-         ``uml``, ``xen``, ``ide``, ``usb``, or ``lxc``.
-       * For ``xen``: one of ``xen`` or ``ide``.
-       * For ``uml``: must be ``uml``.
-       * For ``lxc``: must be ``lxc``.
-       * For ``parallels``: one of ``ide`` or ``scsi``.
-   * - libvirt API driver
-     - ``hw_firmware_type``
-     - Specifies the type of firmware with which to boot the guest.
-     - One of ``bios`` or ``uefi``.
-   * - libvirt API driver
-     - ``hw_mem_encryption``
-     - Enables encryption of guest memory at the hardware level, if
-       there are compute hosts available which support this. See
-       `nova's documentation on configuration of the KVM hypervisor
-       <https://docs.openstack.org/nova/latest/admin/configuration/hypervisor-kvm.html#amd-sev-secure-encrypted-virtualization>`_
-       for more details.
-     - ``true`` or ``false`` (default).
+     - One of ``scsi``, ``virtio``, ``uml``, ``xen``, ``ide``, or ``usb``.
    * - libvirt API driver
      - ``hw_pointer_model``
      - Input devices that allow interaction with a graphical framebuffer,
@@ -369,12 +331,8 @@ Here is a list of useful image properties and the values they expect.
      - ``usbtablet``
    * - libvirt API driver
      - ``hw_rng_model``
-     - Adds a random-number generator device to the image's instances.  This
-       image property by itself does not guarantee that a hardware RNG will be
-       used; it expresses a preference that may or may not be satisfied
-       depending upon Nova configuration.
-
-       The cloud administrator can enable and control device behavior by
+     - Adds a random-number generator device to the image's instances. The
+       cloud administrator can enable and control device behavior by
        configuring the instance's flavor. By default:
 
        * The generator device is disabled.
@@ -386,9 +344,6 @@ Here is a list of useful image properties and the values they expect.
 
           rng_dev_path=/dev/hwrng
 
-       * The use of a hardware random number generator must be configured in a
-         flavor's extra_specs by setting ``hw_rng:allowed`` to True in the
-         flavor definition.
      - ``virtio``, or other supported device.
    * - libvirt API driver
      - ``hw_time_hpet``
@@ -444,10 +399,8 @@ Here is a list of useful image properties and the values they expect.
      - Integer
    * - libvirt API driver
      - ``hw_video_model``
-     - The graphic device model presented to the guest.
-       hw_video_model=none disables the graphics device in the guest and should
-       generally be used when using gpu passthrough.
-     - ``vga``, ``cirrus``, ``vmvga``, ``xen``, ``qxl``, ``virtio``, ``gop`` or ``none``.
+     - The video image driver used.
+     - ``vga``, ``cirrus``, ``vmvga``, ``xen``, or ``qxl``.
    * - libvirt API driver
      - ``hw_video_ram``
      - Maximum RAM for the video image. Used only if a ``hw_video:ram_max_mb``
@@ -498,11 +451,6 @@ Here is a list of useful image properties and the values they expect.
        metadata and Extra Spec are set, the Extra Spec setting is used. This
        allows for flexibility in setting/overriding the default behavior as
        needed.
-     - ``true`` or ``false``
-   * - libvirt API driver
-     - ``hw_pmu``
-     - Controls emulation of a virtual performance monitoring unit (vPMU) in the guest.
-       To reduce latency in realtime workloads disable the vPMU by setting hw_pmu=false.
      - ``true`` or ``false``
    * - libvirt API driver
      - ``img_hide_hypervisor_id``

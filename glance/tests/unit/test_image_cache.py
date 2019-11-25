@@ -135,7 +135,6 @@ class ImageCacheTestCase(object):
 
         self.assertTrue(os.path.exists(incomplete_file_path))
 
-        self.delay_inaccurate_clock()
         self.cache.clean(stall_time=0)
 
         self.assertFalse(os.path.exists(incomplete_file_path))
@@ -282,7 +281,6 @@ class ImageCacheTestCase(object):
         self.assertEqual(['0', '1', '2'],
                          self.cache.get_queued_images())
 
-    @skip_if_disabled
     def test_open_for_write_good(self):
         """
         Test to see if open_for_write works in normal case
@@ -302,7 +300,6 @@ class ImageCacheTestCase(object):
         self.assertFalse(os.path.exists(incomplete_file_path))
         self.assertFalse(os.path.exists(invalid_file_path))
 
-    @skip_if_disabled
     def test_open_for_write_with_exception(self):
         """
         Test to see if open_for_write works in a failure case for each driver
@@ -327,7 +324,6 @@ class ImageCacheTestCase(object):
         self.assertFalse(os.path.exists(incomplete_file_path))
         self.assertTrue(os.path.exists(invalid_file_path))
 
-    @skip_if_disabled
     def test_caching_iterator(self):
         """
         Test to see if the caching iterator interacts properly with the driver
@@ -355,7 +351,6 @@ class ImageCacheTestCase(object):
         self.assertFalse(os.path.exists(incomplete_file_path))
         self.assertFalse(os.path.exists(invalid_file_path))
 
-    @skip_if_disabled
     def test_caching_iterator_handles_backend_failure(self):
         """
         Test that when the backend fails, caching_iter does not continue trying
@@ -379,7 +374,6 @@ class ImageCacheTestCase(object):
         # make sure bad image was not cached
         self.assertFalse(self.cache.is_cached(image_id))
 
-    @skip_if_disabled
     def test_caching_iterator_falloffend(self):
         """
         Test to see if the caching iterator interacts properly with the driver
@@ -408,7 +402,6 @@ class ImageCacheTestCase(object):
         self.assertFalse(os.path.exists(incomplete_file_path))
         self.assertTrue(os.path.exists(invalid_file_path))
 
-    @skip_if_disabled
     def test_gate_caching_iter_good_checksum(self):
         image = b"12345678990abcdefghijklmnop"
         image_id = 123
@@ -424,7 +417,6 @@ class ImageCacheTestCase(object):
         # checksum is valid, fake image should be cached:
         self.assertTrue(cache.is_cached(image_id))
 
-    @skip_if_disabled
     def test_gate_caching_iter_bad_checksum(self):
         image = b"12345678990abcdefghijklmnop"
         image_id = 123

@@ -119,8 +119,7 @@ class TaskExecutor(glance.async_.TaskExecutor):
                 'context': self.context,
                 'task_repo': self.task_repo,
                 'image_repo': self.image_repo,
-                'image_factory': self.image_factory,
-                'backend': task_input.get('backend')
+                'image_factory': self.image_factory
             }
 
             if task.type == "import":
@@ -130,6 +129,7 @@ class TaskExecutor(glance.async_.TaskExecutor):
             if task.type == 'api_image_import':
                 kwds['image_id'] = task_input['image_id']
                 kwds['import_req'] = task_input['import_req']
+                kwds['backend'] = task_input['backend']
             return driver.DriverManager('glance.flows', task.type,
                                         invoke_on_load=True,
                                         invoke_kwds=kwds).driver

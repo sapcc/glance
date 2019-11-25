@@ -72,15 +72,14 @@ class MultiStoreClearingUnitTest(test_utils.BaseTestCase):
         :param passing_config: making store driver passes basic configurations.
         :returns: the number of how many store drivers been loaded.
         """
-        self.config(enabled_backends={'fast': 'file', 'cheap': 'file',
-                                      'readonly_store': 'http'})
+        self.config(enabled_backends={'file1': 'file', 'ceph1': 'rbd'})
         store.register_store_opts(CONF)
 
-        self.config(default_backend='fast',
+        self.config(default_backend='file1',
                     group='glance_store')
 
         self.config(filesystem_store_datadir=self.test_dir,
-                    group='fast')
+                    group='file1')
         store.create_multi_stores(CONF)
 
 
@@ -109,9 +108,11 @@ class IsolatedUnitTest(StoreClearingUnitTest):
             DEFAULT_REGISTRY_PORT = 9191
             DEFAULT_API_PORT = 9292
 
-            if client.port == DEFAULT_API_PORT:
+            if (client.port == DEFAULT_API_PORT and
+                    client.host == '0.0.0.0'):
                 return stubs.FakeGlanceConnection
-            elif client.port == DEFAULT_REGISTRY_PORT:
+            elif (client.port == DEFAULT_REGISTRY_PORT and
+                  client.host == '0.0.0.0'):
                 return stubs.FakeRegistryConnection(registry=self.registry)
 
         self.patcher = mock.patch(

@@ -658,9 +658,8 @@ def image_get_all(context, filters=None, marker=None, limit=None,
                                  visibility)
     if visibility is not None:
         # with a visibility, we always and only include images with that
-        # visibility except when using the 'all' visibility
-        if visibility != 'all':
-            query = query.filter(models.Image.visibility == visibility)
+        # visibility
+        query = query.filter(models.Image.visibility == visibility)
     elif context.owner is None:
         # without either a visibility or an owner, we never include
         # 'community' images
