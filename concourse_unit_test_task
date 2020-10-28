@@ -5,4 +5,4 @@ apt-get install -y build-essential python3-pip python3-dev git libpcre++-dev get
 pip3 install tox && \
 git clone -b stable/ussuri-m3 --single-branch https://github.com/sapcc/glance.git --depth=1 && \
 cd glance && \
-tox -e py3
+tox -e py38
