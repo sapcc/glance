@@ -1,1 +1,8 @@
-apt-get update && apt-get install -y build-essential python3-pip python3-dev python3-distutils git libpcre++-dev gettext && pip3 install tox && git clone -b stable/ussuri-m3 --single-branch https://github.com/sapcc/glance.git && cd glance && UPPER_CONSTRAINTS_FILE=https://raw.githubusercontent.com/sapcc/requirements/stable/ussuri-m3/upper-constraints.txt tox -r -e py3
+export DEBIAN_FRONTEND=noninteractive && \
+export UPPER_CONSTRAINTS_FILE=https://raw.githubusercontent.com/sapcc/requirements/stable/ussuri-m3/upper-consussurits.txt && \
+apt-get update && \
+apt-get install -y build-essential python3-pip python3-dev git libpcre++-dev gettext && \
+pip3 install tox && \
+git clone -b stable/ussuri-m3 --single-branch https://github.com/sapcc/glance.git --depth=1 && \
+cd glance && \
+tox -e py3
