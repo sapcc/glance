@@ -245,10 +245,7 @@ class TestImagesController(base.StoreClearingUnitTest):
         def fake_save_not_found(self, from_state=None):
             raise exception.ImageNotFound()
 
-        def fake_save_conflict(self, from_state=None):
-            raise exception.Conflict()
-
-        for fun in [fake_save_not_found, fake_save_conflict]:
+        for fun in [fake_save_not_found]:
             request = unit_test_utils.get_fake_request()
             image = FakeImage('abcd', locations=['http://example.com/image'])
             self.image_repo.result = image
