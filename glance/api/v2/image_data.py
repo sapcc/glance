@@ -23,6 +23,7 @@ from oslo_log import log as logging
 from oslo_utils import encodeutils
 from oslo_utils import excutils
 import six
+import swiftclient
 import webob.exc
 
 import glance.api.policy
@@ -166,7 +167,11 @@ class ImageDataController(object):
 
                 try:
                     image_repo.save(image, from_state='saving')
-                except exception.NotAuthenticated:
+                except (exception.AuthorizationFailure,
+                        exception.NotAuthenticated,
+                        swiftclient.exceptions.ClientException) as e:
+                    LOG.debug(_LI("Error when saving image: %s"),
+                              encodeutils.exception_to_unicode(e))
                     if refresher is not None:
                         # request a new token to update an image in database
                         cxt.auth_token = refresher.refresh_token()
@@ -184,9 +189,14 @@ class ImageDataController(object):
                              {"trust": refresher.trust_id,
                               "msg": encodeutils.exception_to_unicode(e)})
 
+            except exception.Conflict as exc:
+                # NOTE(galkindmitrii): this needs some further investigation.
+                # Conflict happens when a new token is used on long upload
+                # and image transition from 'active' to 'active' is attempted.
+                LOG.debug("Conflict error: %s" % exc)
+
             except (glance_store.NotFound,
-                    exception.ImageNotFound,
-                    exception.Conflict):
+                    exception.ImageNotFound):
                 msg = (_("Image %s could not be found after upload. "
                          "The image may have been deleted during the "
                          "upload, cleaning up the chunks uploaded.") %
