@@ -566,7 +566,7 @@ class VMDKInspector(FileInspector):
             vmdktype = descriptor[type_idx:type_end]
         else:
             vmdktype = b'formatnotfound'
-        if vmdktype != b'monolithicSparse':
+        if vmdktype not in (b'monolithicSparse', b'streamOptimized'):
             raise ImageFormatError('Unsupported VMDK format %s' % vmdktype)
             return 0
 
