@@ -132,9 +132,9 @@ class ContextMiddleware(BaseContextMiddleware):
                 raise webob.exc.HTTPInternalServerError(
                     _('Invalid service catalog json.'))
 
-        request_id = req.headers.get('X-Openstack-Request-ID')
-        if request_id and (0 < CONF.max_request_id_length <
-                           len(request_id)):
+        global_request_id = req.headers.get('X-Openstack-Request-ID')
+        if global_request_id and (0 < CONF.max_request_id_length <
+                           len(global_request_id)):
             msg = (_('x-openstack-request-id is too long, max size %s') %
                    CONF.max_request_id_length)
             return webob.exc.HTTPRequestHeaderFieldsTooLarge(comment=msg)
@@ -142,7 +142,7 @@ class ContextMiddleware(BaseContextMiddleware):
         kwargs = {
             'service_catalog': service_catalog,
             'policy_enforcer': self.policy_enforcer,
-            'request_id': request_id,
+            'global_request_id': global_request_id,
         }
 
         ctxt = glance.context.RequestContext.from_environ(req.environ,
