@@ -265,9 +265,10 @@ class ImageDataController(object):
                                                       request=req)
 
         except exception.LimitExceeded as e:
-            LOG.error(str(e))
+            msg = _("Project Object Storage Quota is Full: %s") % encodeutils.exception_to_unicode(e)
+            LOG.error(msg)
             self._restore(image_repo, image)
-            raise webob.exc.HTTPRequestEntityTooLarge(explanation=str(e),
+            raise webob.exc.HTTPRequestEntityTooLarge(explanation=msg,
                                                       request=req)
 
         except glance_store.StorageWriteDenied as e:
