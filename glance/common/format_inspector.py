@@ -531,7 +531,7 @@ class VMDKInspector(FileInspector):
             '<4sIIQQQQ', self.region('header').data[:44])
 
         if sig != b'KDMV':
-            LOG.warnin('Signature KDMV not found: %r', sig)
+            LOG.warning('Signature KDMV not found: %r', sig)
             return
 
         if ver not in (1, 2, 3):
