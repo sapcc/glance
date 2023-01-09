@@ -8,4 +8,4 @@ git+https://github.com/sapcc/openstack-rate-limit-middleware.git#egg=rate-limit-
 git+https://github.com/sapcc/glance_store.git@stable/zed-m3#egg=glance_store
 
 # needs for osprofiler
-jaeger-client
+# jaeger-client
