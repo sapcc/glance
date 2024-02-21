@@ -29,6 +29,23 @@
       - name: openstack/stevedore
       - name: openstack/taskflow
 
+# Temporary job until SQLAlchemy 2.0 is no longer blocked by upper-requirements
+# NOTE(stephenfin): We only need functional tests since DB interactions are
+# stubbed out in unit tests
+- job:
+    name: glance-tox-functional-py39-sqlalchemy-tips
+    parent: openstack-tox-functional-py39
+    description: |
+      Glance py39 functional tests vs. sqlalchemy and relatedd project masters
+    # The job only tests the latest and shouldn't be run on the stable branches
+    branches: master
+    required-projects:
+      - name: openstack/oslo.db
+      - name: github.com/sqlalchemy/sqlalchemy
+        override-checkout: main
+      - name: github.com/sqlalchemy/alembic
+        override-checkout: main
+
 - job:
     name: glance-tox-functional-py39-rbac-defaults
     parent: openstack-tox-functional-py39
@@ -241,6 +258,7 @@
     parent: tempest-integrated-storage-import
     description: |
       The regular import workflow job to test with multiple cinder stores
+    timeout: 10800
     vars:
       devstack_localrc:
         USE_CINDER_FOR_GLANCE: True
@@ -262,11 +280,17 @@
     vars:
       configure_swap_size: 4096
       nslookup_target: 'opendev.org'
+      devstack_local_conf:
+        post-config:
+          $GLANCE_API_CONF:
+            wsgi:
+              python_interpreter: $PYTHON
       devstack_localrc:
         USE_CINDER_FOR_GLANCE: True
         GLANCE_ENABLE_MULTIPLE_STORES: True
         CINDER_ENABLED_BACKENDS: lvm:lvmdriver-1,lvm:lvmdriver-2
         GLANCE_CINDER_DEFAULT_BACKEND: lvmdriver-1
+        GLOBAL_VENV: false
 
 - job:
     name: tempest-integrated-storage-import-standalone
@@ -325,6 +349,7 @@
         - openstack-tox-functional-py39
         - openstack-tox-functional-py310
         - glance-tox-functional-py39-rbac-defaults
+        - glance-tox-functional-py39-sqlalchemy-tips
         - glance-ceph-thin-provisioning:
             voting: false
             irrelevant-files: &tempest-irrelevant-files

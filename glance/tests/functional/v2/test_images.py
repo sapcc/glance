@@ -72,7 +72,6 @@ class TestImages(functional.FunctionalTest):
                                                "foo_image%d" % i)
             setattr(self, 'http_server%d' % i, ret[1])
             setattr(self, 'http_port%d' % i, ret[2])
-        self.api_server.send_identity_credentials = True
 
     def tearDown(self):
         for i in range(3):
@@ -3740,7 +3739,6 @@ class TestImagesIPv6(functional.FunctionalTest):
         # Image list should be empty
 
         self.api_server.deployment_flavor = "caching"
-        self.api_server.send_identity_credentials = True
         self.start_servers(**self.__dict__.copy())
 
         url = f'http://[::1]:{self.api_port}'
@@ -7050,6 +7048,7 @@ def get_enforcer_class(limits):
 class TestKeystoneQuotas(functional.SynchronousAPIBase):
     def setUp(self):
         super(TestKeystoneQuotas, self).setUp()
+        self.config(endpoint_id='ENDPOINT_ID', group='oslo_limit')
         self.config(use_keystone_limits=True)
         self.config(filesystem_store_datadir='/tmp/foo',
                     group='os_glance_tasks_store')

@@ -2160,7 +2160,8 @@ class DBPurgeTests(test_utils.BaseTestCase):
 
         # Verify that no records from images have been deleted
         # due to DBReferenceError being raised
-        images_rows = session.query(images).count()
+        with session.begin():
+            images_rows = session.query(images).count()
         self.assertEqual(4, images_rows)
 
     def test_purge_task_info_with_refs_to_soft_deleted_tasks(self):
@@ -2172,7 +2173,8 @@ class DBPurgeTests(test_utils.BaseTestCase):
         self.assertEqual(3, len(tasks))
 
         task_info = sqlalchemyutils.get_table(engine, 'task_info')
-        task_info_rows = session.query(task_info).count()
+        with session.begin():
+            task_info_rows = session.query(task_info).count()
         self.assertEqual(3, task_info_rows)
 
         # purge soft deleted rows older than yesterday
@@ -2183,7 +2185,8 @@ class DBPurgeTests(test_utils.BaseTestCase):
         self.assertEqual(2, len(tasks))
 
         # and no task_info was left behind, 1 row purged
-        task_info_rows = session.query(task_info).count()
+        with session.begin():
+            task_info_rows = session.query(task_info).count()
         self.assertEqual(2, task_info_rows)
 
 
@@ -2253,7 +2256,7 @@ class VisibilityTests(object):
                                            is_public=False)
         self.assertEqual(8, len(images))
         for i in images:
-            self.assertTrue(i['visibility'] in ['shared', 'private'])
+            self.assertIn(i['visibility'], ['shared', 'private'])
 
     def test_unknown_admin_is_public_none(self):
         images = self.db_api.image_get_all(self.admin_none_context)
@@ -2307,8 +2310,7 @@ class VisibilityTests(object):
                                            is_public=False)
         self.assertEqual(9, len(images))
         for i in images:
-            self.assertTrue(i['visibility']
-                            in ['shared', 'private', 'community'])
+            self.assertIn(i['visibility'], ['shared', 'private', 'community'])
 
     def test_known_admin_is_public_none(self):
         images = self.db_api.image_get_all(self.admin_context)
@@ -2426,8 +2428,7 @@ class VisibilityTests(object):
         self.assertEqual(3, len(images))
         for i in images:
             self.assertEqual(i['owner'], self.tenant1)
-            self.assertTrue(i['visibility']
-                            in ['private', 'shared', 'community'])
+            self.assertIn(i['visibility'], ['private', 'shared', 'community'])
 
     def test_tenant1_is_public_none(self):
         images = self.db_api.image_get_all(self.tenant1_context)

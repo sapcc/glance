@@ -107,7 +107,6 @@ class BaseServer(metaclass=abc.ABCMeta):
         self.process_pid = None
         self.server_module = None
         self.stop_kill = False
-        self.send_identity_credentials = False
 
     def write_conf(self, **kwargs):
         """
@@ -181,8 +180,8 @@ class BaseServer(metaclass=abc.ABCMeta):
             conf_filepath = os.path.join(conf_dir, 'glance-manage.conf')
 
             with open(conf_filepath, 'w') as conf_file:
-                conf_file.write('[DEFAULT]\n')
-                conf_file.write('sql_connection = %s' % self.sql_connection)
+                conf_file.write('[database]\n')
+                conf_file.write('connection = %s' % self.sql_connection)
                 conf_file.flush()
 
             glance_db_env = 'GLANCE_DB_TEST_SQLITE_FILE'
@@ -420,8 +419,6 @@ class ApiServer(Server):
         self.location_strategy = 'location_order'
         self.store_type_location_strategy_preference = ""
 
-        self.send_identity_headers = False
-
         self.node_staging_uri = 'file://%s' % os.path.join(
             self.test_dir, 'staging')
 
@@ -431,16 +428,13 @@ default_log_levels = eventlet.wsgi.server=DEBUG,stevedore.extension=INFO
 bind_host = %(bind_host)s
 bind_port = %(bind_port)s
 metadata_encryption_key = %(metadata_encryption_key)s
-send_identity_credentials = %(send_identity_credentials)s
 log_file = %(log_file)s
 image_size_cap = %(image_size_cap)d
 delayed_delete = %(delayed_delete)s
 workers = %(workers)s
 scrub_time = %(scrub_time)s
-send_identity_headers = %(send_identity_headers)s
 image_cache_dir = %(image_cache_dir)s
 image_cache_driver = %(image_cache_driver)s
-sql_connection = %(sql_connection)s
 show_image_direct_url = %(show_image_direct_url)s
 show_multiple_locations = %(show_multiple_locations)s
 user_storage_quota = %(user_storage_quota)s
@@ -454,6 +448,8 @@ image_location_quota=%(image_location_quota)s
 location_strategy=%(location_strategy)s
 allow_additional_image_properties = True
 node_staging_uri=%(node_staging_uri)s
+[database]
+connection = %(sql_connection)s
 [oslo_policy]
 policy_file = %(policy_file)s
 policy_default_rule = %(policy_default_rule)s
@@ -613,24 +609,19 @@ class ApiServerForMultipleBackend(Server):
         self.location_strategy = 'location_order'
         self.store_type_location_strategy_preference = ""
 
-        self.send_identity_headers = False
-
         self.conf_base = """[DEFAULT]
 debug = %(debug)s
 default_log_levels = eventlet.wsgi.server=DEBUG,stevedore.extension=INFO
 bind_host = %(bind_host)s
 bind_port = %(bind_port)s
 metadata_encryption_key = %(metadata_encryption_key)s
-send_identity_credentials = %(send_identity_credentials)s
 log_file = %(log_file)s
 image_size_cap = %(image_size_cap)d
 delayed_delete = %(delayed_delete)s
 workers = %(workers)s
 scrub_time = %(scrub_time)s
-send_identity_headers = %(send_identity_headers)s
 image_cache_dir = %(image_cache_dir)s
 image_cache_driver = %(image_cache_driver)s
-sql_connection = %(sql_connection)s
 show_image_direct_url = %(show_image_direct_url)s
 show_multiple_locations = %(show_multiple_locations)s
 user_storage_quota = %(user_storage_quota)s
@@ -644,6 +635,8 @@ image_location_quota=%(image_location_quota)s
 location_strategy=%(location_strategy)s
 allow_additional_image_properties = True
 enabled_backends=file1:file,file2:file,file3:file
+[database]
+connection = %(sql_connection)s
 [oslo_policy]
 policy_file = %(policy_file)s
 policy_default_rule = %(policy_default_rule)s
@@ -785,8 +778,6 @@ class ScrubberDaemon(Server):
         self.policy_file = policy_file
         self.policy_default_rule = 'default'
 
-        self.send_identity_headers = False
-
         self.conf_base = """[DEFAULT]
 debug = %(debug)s
 log_file = %(log_file)s
@@ -795,8 +786,9 @@ wakeup_time = 2
 scrub_time = %(scrub_time)s
 metadata_encryption_key = %(metadata_encryption_key)s
 lock_path = %(lock_path)s
-sql_connection = %(sql_connection)s
 sql_idle_timeout = 3600
+[database]
+connection = %(sql_connection)s
 [glance_store]
 filesystem_store_datadir=%(image_dir)s
 [oslo_policy]
