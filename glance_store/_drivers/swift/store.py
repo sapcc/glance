@@ -20,6 +20,7 @@ import io
 import logging
 import math
 import urllib.parse
+import time
 
 from keystoneauth1.access import service_catalog as keystone_sc
 from keystoneauth1 import identity as ks_identity
@@ -1505,12 +1506,27 @@ class MultiTenantStore(BaseStore):
 
         return self.storage_url
 
-    def delete(self, location, connection=None, context=None):
+    def delete(self, location, connection=None, context=None, max_retries=20, retry_delay=0.5):
         if not connection:
-            connection = self.get_connection(location.store_location,
-                                             context=context)
-        super(MultiTenantStore, self).delete(location, connection)
-        connection.delete_container(location.store_location.container)
+           connection = self.get_connection(location.store_location, context=context)
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                super(MultiTenantStore, self).delete(location, connection)
+                connection.delete_container(location.store_location.container)
+                # Deletion successful, break out of the retry loop
+                break
+            except swiftclient.ClientException as e:
+                # Log the exception or perform error handling if needed
+                LOG.warning(f"Deletion attempt {attempt} failed. Exception: {str(e)}")
+
+                if attempt < max_retries:
+                    LOG.warning(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    # Max retries reached, raise the exception or handle accordingly
+                    LOG.warning(f"Max retries ({max_retries}) reached. Unable to delete.")
+                    raise
 
     def set_acls(self, location, public=False, read_tenants=None,
                  write_tenants=None, connection=None, context=None):
