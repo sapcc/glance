@@ -28,6 +28,14 @@ from oslo_log import log as logging
 LOG = logging.getLogger(__name__)
 
 
+def chunked_reader(fileobj, chunk_size=512):
+    while True:
+        chunk = fileobj.read(chunk_size)
+        if not chunk:
+            break
+        yield chunk
+
+
 class CaptureRegion(object):
     """Represents a region of a file we want to capture.
 
@@ -176,9 +184,15 @@ class FileInspector(object):
     @property
     def actual_size(self):
         """Returns the total size of the file, usually smaller than
-        virtual_size.
+        virtual_size. NOTE: this will only be accurate if the entire
+        file is read and processed.
         """
         return self._total_count
+
+    @property
+    def complete(self):
+        """Returns True if we have all the information needed."""
+        return all(r.complete for r in self._capture_regions.values())
 
     def __str__(self):
         """The string name of this file format."""
@@ -194,6 +208,35 @@ class FileInspector(object):
         return {name: len(region.data) for name, region in
                 self._capture_regions.items()}
 
+    @classmethod
+    def from_file(cls, filename):
+        """Read as much of a file as necessary to complete inspection.
+
+        NOTE: Because we only read as much of the file as necessary, the
+        actual_size property will not reflect the size of the file, but the
+        amount of data we read before we satisfied the inspector.
+
+        Raises ImageFormatError if we cannot parse the file.
+        """
+        inspector = cls()
+        with open(filename, 'rb') as f:
+            for chunk in chunked_reader(f):
+                inspector.eat_chunk(chunk)
+                if inspector.complete:
+                    # No need to eat any more data
+                    break
+        if not inspector.complete or not inspector.format_match:
+            raise ImageFormatError('File is not in requested format')
+        return inspector
+
+    def safety_check(self):
+        """Perform some checks to determine if this file is safe.
+
+        Returns True if safe, False otherwise. It may raise ImageFormatError
+        if safety cannot be guaranteed because of parsing or other errors.
+        """
+        return True
+
 
 # The qcow2 format consists of a big-endian 72-byte header, of which
 # only a small portion has information we care about:
@@ -202,15 +245,26 @@ class FileInspector(object):
 #   0  0x00   Magic 4-bytes 'QFI\xfb'
 #   4  0x04   Version (uint32_t, should always be 2 for modern files)
 #  . . .
+#   8  0x08   Backing file offset (uint64_t)
 #  24  0x18   Size in bytes (unint64_t)
+#  . . .
+#  72  0x48   Incompatible features bitfield (6 bytes)
 #
-# https://people.gnome.org/~markmc/qcow-image-format.html
+# https://gitlab.com/qemu-project/qemu/-/blob/master/docs/interop/qcow2.txt
 class QcowInspector(FileInspector):
     """QEMU QCOW2 Format
 
     This should only require about 32 bytes of the beginning of the file
-    to determine the virtual size.
+    to determine the virtual size, and 104 bytes to perform the safety check.
     """
+
+    BF_OFFSET = 0x08
+    BF_OFFSET_LEN = 8
+    I_FEATURES = 0x48
+    I_FEATURES_LEN = 8
+    I_FEATURES_DATAFILE_BIT = 3
+    I_FEATURES_MAX_BIT = 4
+
     def __init__(self, *a, **k):
         super(QcowInspector, self).__init__(*a, **k)
         self.new_region('header', CaptureRegion(0, 512))
@@ -219,6 +273,10 @@ class QcowInspector(FileInspector):
         magic, version, bf_offset, bf_sz, cluster_bits, size = (
             struct.unpack('>4sIQIIQ', self.region('header').data[:32]))
         return magic, size
+
+    @property
+    def has_header(self):
+        return self.region('header').complete
 
     @property
     def virtual_size(self):
@@ -236,8 +294,93 @@ class QcowInspector(FileInspector):
         magic, size = self._qcow_header_data()
         return magic == b'QFI\xFB'
 
+    @property
+    def has_backing_file(self):
+        if not self.region('header').complete:
+            return None
+        if not self.format_match:
+            return False
+        bf_offset_bytes = self.region('header').data[
+            self.BF_OFFSET:self.BF_OFFSET + self.BF_OFFSET_LEN]
+        # nonzero means "has a backing file"
+        bf_offset, = struct.unpack('>Q', bf_offset_bytes)
+        return bf_offset != 0
+
+    @property
+    def has_unknown_features(self):
+        if not self.region('header').complete:
+            return None
+        if not self.format_match:
+            return False
+        i_features = self.region('header').data[
+            self.I_FEATURES:self.I_FEATURES + self.I_FEATURES_LEN]
+
+        # This is the maximum byte number we should expect any bits to be set
+        max_byte = self.I_FEATURES_MAX_BIT // 8
+
+        # The flag bytes are in big-endian ordering, so if we process
+        # them in index-order, they're reversed
+        for i, byte_num in enumerate(reversed(range(self.I_FEATURES_LEN))):
+            if byte_num == max_byte:
+                # If we're in the max-allowed byte, allow any bits less than
+                # the maximum-known feature flag bit to be set
+                allow_mask = ((1 << self.I_FEATURES_MAX_BIT) - 1)
+            elif byte_num > max_byte:
+                # If we're above the byte with the maximum known feature flag
+                # bit, then we expect all zeroes
+                allow_mask = 0x0
+            else:
+                # Any earlier-than-the-maximum byte can have any of the flag
+                # bits set
+                allow_mask = 0xFF
+
+            if i_features[i] & ~allow_mask:
+                LOG.warning('Found unknown feature bit in byte %i: %s/%s',
+                            byte_num, bin(i_features[byte_num] & ~allow_mask),
+                            bin(allow_mask))
+                return True
+
+        return False
+
+    @property
+    def has_data_file(self):
+        if not self.region('header').complete:
+            return None
+        if not self.format_match:
+            return False
+        i_features = self.region('header').data[
+            self.I_FEATURES:self.I_FEATURES + self.I_FEATURES_LEN]
+
+        # First byte of bitfield, which is i_features[7]
+        byte = self.I_FEATURES_LEN - 1 - self.I_FEATURES_DATAFILE_BIT // 8
+        # Third bit of bitfield, which is 0x04
+        bit = 1 << (self.I_FEATURES_DATAFILE_BIT - 1 % 8)
+        return bool(i_features[byte] & bit)
+
     def __str__(self):
         return 'qcow2'
+
+    def safety_check(self):
+        return (not self.has_backing_file and
+                not self.has_data_file and
+                not self.has_unknown_features)
+
+
+class QEDInspector(FileInspector):
+    def __init__(self, tracing=False):
+        super().__init__(tracing)
+        self.new_region('header', CaptureRegion(0, 512))
+
+    @property
+    def format_match(self):
+        if not self.region('header').complete:
+            return False
+        return self.region('header').data.startswith(b'QED\x00')
+
+    def safety_check(self):
+        # QED format is not supported by anyone, but we want to detect it
+        # and mark it as just always unsafe.
+        return False
 
 
 # The VHD (or VPC as QEMU calls it) format consists of a big-endian
@@ -524,6 +667,7 @@ class VMDKInspector(FileInspector):
     # at 0x200 and 1MB - 1
     DESC_OFFSET = 0x200
     DESC_MAX_SIZE = (1 << 20) - 1
+    GD_AT_END = 0xffffffffffffffff
 
     def __init__(self, *a, **k):
         super(VMDKInspector, self).__init__(*a, **k)
@@ -536,14 +680,20 @@ class VMDKInspector(FileInspector):
         if not self.region('header').complete:
             return
 
-        sig, ver, _flags, _sectors, _grain, desc_sec, desc_num = struct.unpack(
-            '<4sIIQQQQ', self.region('header').data[:44])
+        (sig, ver, _flags, _sectors, _grain, desc_sec, desc_num,
+         _numGTEsperGT, _rgdOffset, gdOffset) = struct.unpack(
+            '<4sIIQQQQIQQ', self.region('header').data[:64])
 
         if sig != b'KDMV':
             raise ImageFormatError('Signature KDMV not found: %r' % sig)
 
         if ver not in (1, 2, 3):
             raise ImageFormatError('Unsupported format version %i' % ver)
+
+        if gdOffset == self.GD_AT_END:
+            # This means we have a footer, which takes precedence over the
+            # header, which we cannot support since we stream.
+            raise ImageFormatError('Unsupported VMDK footer')
 
         # Since we parse both desc_sec and desc_num (the location of the
         # VMDK's descriptor, expressed in 512 bytes sectors) we enforce a
@@ -591,6 +741,59 @@ class VMDKInspector(FileInspector):
             struct.unpack('<IIIQQQQ', self.region('header').data[:44]))
 
         return sectors * 512
+
+    def safety_check(self):
+        if (not self.has_region('descriptor') or
+                not self.region('descriptor').complete):
+            return False
+
+        try:
+            # Descriptor is padded to 512 bytes
+            desc_data = self.region('descriptor').data.rstrip(b'\x00')
+            # Descriptor is actually case-insensitive ASCII text
+            desc_text = desc_data.decode('ascii').lower()
+        except UnicodeDecodeError:
+            LOG.error('VMDK descriptor failed to decode as ASCII')
+            raise ImageFormatError('Invalid VMDK descriptor data')
+
+        extent_access = ('rw', 'rdonly', 'noaccess')
+        header_fields = []
+        extents = []
+        ddb = []
+
+        # NOTE(danms): Cautiously parse the VMDK descriptor. Each line must
+        # be something we understand, otherwise we refuse it.
+        for line in [x.strip() for x in desc_text.split('\n')]:
+            if line.startswith('#') or not line:
+                # Blank or comment lines are ignored
+                continue
+            elif line.startswith('ddb'):
+                # DDB lines are allowed (but not used by us)
+                ddb.append(line)
+            elif '=' in line and ' ' not in line.split('=')[0]:
+                # Header fields are a single word followed by an '=' and some
+                # value
+                header_fields.append(line)
+            elif line.split(' ')[0] in extent_access:
+                # Extent lines start with one of the three access modes
+                extents.append(line)
+            else:
+                # Anything else results in a rejection
+                LOG.error('Unsupported line %r in VMDK descriptor', line)
+                raise ImageFormatError('Invalid VMDK descriptor data')
+
+        # Check all the extent lines for concerning content
+        for extent_line in extents:
+            if '/' in extent_line:
+                LOG.error('Extent line %r contains unsafe characters',
+                          extent_line)
+                return False
+
+        if not extents:
+            LOG.error('VMDK file specified no extents')
+            return False
+
+        return True
 
     def __str__(self):
         return 'vmdk'
@@ -680,19 +883,52 @@ class InfoWrapper(object):
             self._source.close()
 
 
+ALL_FORMATS = {
+    'raw': FileInspector,
+    'qcow2': QcowInspector,
+    'vhd': VHDInspector,
+    'vhdx': VHDXInspector,
+    'vmdk': VMDKInspector,
+    'vdi': VDIInspector,
+    'qed': QEDInspector,
+}
+
+
 def get_inspector(format_name):
     """Returns a FormatInspector class based on the given name.
 
     :param format_name: The name of the disk_format (raw, qcow2, etc).
     :returns: A FormatInspector or None if unsupported.
     """
-    formats = {
-        'raw': FileInspector,
-        'qcow2': QcowInspector,
-        'vhd': VHDInspector,
-        'vhdx': VHDXInspector,
-        'vmdk': VMDKInspector,
-        'vdi': VDIInspector,
-    }
 
-    return formats.get(format_name)
+    return ALL_FORMATS.get(format_name)
+
+
+def detect_file_format(filename):
+    """Attempts to detect the format of a file.
+
+    This runs through a file one time, running all the known inspectors in
+    parallel. It stops reading the file once one of them matches or all of
+    them are sure they don't match.
+
+    Returns the FileInspector that matched, if any. None if 'raw'.
+    """
+    inspectors = {k: v() for k, v in ALL_FORMATS.items()}
+    with open(filename, 'rb') as f:
+        for chunk in chunked_reader(f):
+            for format, inspector in list(inspectors.items()):
+                try:
+                    inspector.eat_chunk(chunk)
+                except ImageFormatError:
+                    # No match, so stop considering this format
+                    inspectors.pop(format)
+                    continue
+                if (inspector.format_match and inspector.complete and
+                        format != 'raw'):
+                    # First complete match (other than raw) wins
+                    return inspector
+            if all(i.complete for i in inspectors.values()):
+                # If all the inspectors are sure they are not a match, avoid
+                # reading to the end of the file to settle on 'raw'.
+                break
+    return inspectors['raw']
