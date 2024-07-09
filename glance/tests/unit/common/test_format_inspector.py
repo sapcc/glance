@@ -51,30 +51,18 @@ class TestFormatInspectors(test_utils.BaseTestCase):
             except Exception:
                 pass
 
-<<<<<<< HEAD
-    def _create_img(self, fmt, size, subformat=None):
-=======
     def _create_img(self, fmt, size, subformat=None, options=None,
                     backing_file=None):
->>>>>>> upstream/stable/2023.2
         if fmt == 'vhd':
             # QEMU calls the vhd format vpc
             fmt = 'vpc'
 
-<<<<<<< HEAD
-=======
         if options is None:
             options = {}
->>>>>>> upstream/stable/2023.2
         opt = ''
         prefix = 'glance-unittest-formatinspector-'
 
         if subformat:
-<<<<<<< HEAD
-            opt = ' -o subformat=%s' % subformat
-            prefix += subformat + '-'
-
-=======
             options['subformat'] = subformat
             prefix += subformat + '-'
 
@@ -85,7 +73,6 @@ class TestFormatInspectors(test_utils.BaseTestCase):
         if backing_file is not None:
             opt += ' -b %s -F raw' % backing_file
 
->>>>>>> upstream/stable/2023.2
         fn = tempfile.mktemp(prefix=prefix,
                              suffix='.%s' % fmt)
         self._created_files.append(fn)
@@ -183,8 +170,6 @@ class TestFormatInspectors(test_utils.BaseTestCase):
     def test_vmdk_stream_optimized(self):
         self._test_format('vmdk', 'streamOptimized')
 
-<<<<<<< HEAD
-=======
     def test_from_file_reads_minimum(self):
         img = self._create_img('qcow2', 10 * units.Mi)
         file_size = os.stat(img).st_size
@@ -200,7 +185,6 @@ class TestFormatInspectors(test_utils.BaseTestCase):
         self.assertTrue(fmt.format_match)
         self.assertFalse(fmt.safety_check())
 
->>>>>>> upstream/stable/2023.2
     def _test_vmdk_bad_descriptor_offset(self, subformat=None):
         format_name = 'vmdk'
         image_size = 10 * units.Mi
@@ -272,8 +256,6 @@ class TestFormatInspectors(test_utils.BaseTestCase):
     def test_vmdk_bad_descriptor_mem_limit_stream_optimized(self):
         self._test_vmdk_bad_descriptor_mem_limit(subformat='streamOptimized')
 
-<<<<<<< HEAD
-=======
     def test_qcow2_safety_checks(self):
         # Create backing and data-file names (and initialize the backing file)
         backing_fn = tempfile.mktemp(prefix='backing')
@@ -331,7 +313,6 @@ class TestFormatInspectors(test_utils.BaseTestCase):
         data[0x4F] = 0x80
         self.assertTrue(inspector.has_unknown_features)
 
->>>>>>> upstream/stable/2023.2
     def test_vdi(self):
         self._test_format('vdi')
 
