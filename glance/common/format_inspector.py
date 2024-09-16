@@ -685,16 +685,20 @@ class VMDKInspector(FileInspector):
          _numGTEsperGT, _rgdOffset, gdOffset) = struct.unpack(
             '<4sIIQQQQIQQ', self.region('header').data[:64])
 
+        # Need to validate why the images are still created if ImageFormatError is raised
         if sig != b'KDMV':
             LOG.warning('Signature KDMV not found: %r - proceeding with limitations.' % sig)
+            return
 
         if ver not in (1, 2, 3):
             LOG.warning('Unsupported format version %i - proceeding with limitations.' % ver)
+            return
 
         if gdOffset == self.GD_AT_END:
             # This means we have a footer, which takes precedence over the
             # header, which we cannot support since we stream.
             LOG.warning('Unsupported VMDK footer - proceeding with limitations.')
+            return
 
         # Since we parse both desc_sec and desc_num (the location of the
         # VMDK's descriptor, expressed in 512 bytes sectors) we enforce a
