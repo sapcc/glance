@@ -67,34 +67,62 @@ CONF.register_opts(metadata_opts)
 
 def get_metadef_namespaces_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_namespaces', meta, autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_namespaces',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def get_metadef_resource_types_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_resource_types', meta,
-                                autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_resource_types',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def get_metadef_namespace_resource_types_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_namespace_resource_types', meta,
-                                autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_namespace_resource_types',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def get_metadef_properties_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_properties', meta, autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_properties',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def get_metadef_objects_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_objects', meta, autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_objects',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def get_metadef_tags_table(meta, conn):
     with conn.begin():
-        return sqlalchemy.Table('metadef_tags', meta, autoload_with=conn)
+        return sqlalchemy.Table(
+            'metadef_tags',
+            meta,
+            implicit_returning=False,
+            autoload_with=conn
+        )
 
 
 def _get_resource_type_id(meta, conn, name):
