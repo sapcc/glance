@@ -19,6 +19,7 @@ import os
 import re
 import urllib.parse as urlparse
 import uuid
+import json
 
 from castellan.common import exception as castellan_exception
 from castellan import key_manager
@@ -97,12 +98,20 @@ class ImagesController(object):
                 image['owner'] = req.context.project_id
 
             api_policy.ImageAPIPolicy(req.context, image,
-                                      self.policy).add_image()
+                                    self.policy).add_image()
 
             ks_quota.enforce_image_count_total(req.context, req.context.owner)
+
             image = image_factory.new_image(extra_properties=extra_properties,
                                             tags=tags, **image)
+
+            tags_list = getattr(req.context, 'domain_tags', None)
+            if tags_list:
+                image.extra_properties['domain_tags'] = json.dumps(tags_list)
+                LOG.debug("Attached project tags to image during create (no ID): %s", tags_list)
+
             image_repo.add(image)
+
         except (exception.DuplicateLocation,
                 exception.Invalid) as e:
             raise webob.exc.HTTPBadRequest(explanation=e.msg)
@@ -125,6 +134,7 @@ class ImagesController(object):
             raise webob.exc.HTTPBadRequest(explanation=e)
 
         return image
+
 
     def _bust_import_lock(self, admin_image_repo, admin_task_repo,
                           image, task, task_id):
@@ -583,9 +593,9 @@ class ImagesController(object):
             image = image_repo.get(image_id)
             api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
 
-            if getattr(CONF, 'show_project_tags', False):
-                tags = utils.fetch_project_tags(image.owner, auth_token=req.context.auth_token)
-                image.extra_properties['project_tags'] = tags
+            if getattr(CONF, 'show_domain_tags', False):
+                tags = utils.fetch_domain_tags(image.owner, auth_token=req.context.auth_token)
+                image.extra_properties['domain_tags'] = tags
                 LOG.debug("Attached project tags to image %s: %s", image_id, tags)
 
             return image

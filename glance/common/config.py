@@ -29,21 +29,21 @@ from paste import deploy
 from glance.i18n import _
 from glance.version import version_info as version
 
-show_project_tags_opt = cfg.BoolOpt(
-    "show_project_tags",
+show_domain_tags_opt = cfg.BoolOpt(
+    "show_domain_tags",
     default=False,
     help="""
 Enable showing Keystone project tags in image details.
 
 When enabled, the Glance API will attempt to fetch the project's tags
 from Keystone and include them in the image's extra_properties
-under the 'project_tags' key. This may result in additional
+under the 'domain_tags' key. This may result in additional
 API calls to Keystone, depending on configuration.
 """,
 )
 
 CONF = cfg.CONF
-CONF.register_opt(show_project_tags_opt)
+CONF.register_opt(show_domain_tags_opt)
 
 # Glance Service User group and options
 glance_service_user_group = cfg.OptGroup(

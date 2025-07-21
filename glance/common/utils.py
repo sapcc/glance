@@ -68,20 +68,12 @@ IMAGE_META_HEADERS = ['x-image-meta-location', 'x-image-meta-size',
 
 GLANCE_TEST_SOCKET_FD_STR = 'GLANCE_TEST_SOCKET_FD'
 
-def fetch_project_tags(project_id, auth_token=None):
+def fetch_domain_tags(project_id, auth_token=None):
     try:
-        LOG.debug("Starting fetch_project_tags for project_id=%s", project_id)
+        LOG.debug("Starting fetch_domain_tags for project_id=%s", project_id)
 
+        # Setup Keystone client
         if CONF.glance_service_user.enabled:
-            LOG.debug("Using service user flow")
-            LOG.debug(
-                "Service user details: username=%s, user_domain=%s, project=%s, project_domain=%s",
-                CONF.glance_service_user.username,
-                CONF.glance_service_user.user_domain_name,
-                CONF.glance_service_user.project_name,
-                CONF.glance_service_user.project_domain_name,
-            )
-
             loader = loading.get_plugin_loader("password")
             auth = loader.load_from_options(
                 auth_url=CONF.keystone_authtoken.auth_url,
@@ -93,22 +85,26 @@ def fetch_project_tags(project_id, auth_token=None):
             )
             sess = session.Session(auth=auth)
             keystone = keystone_client.Client(session=sess)
-
         else:
-            LOG.debug("Using user token flow")
-
             if not auth_token:
-                LOG.error("No auth_token provided in user token flow")
                 raise Exception("No auth token provided for user token mode")
-
-            LOG.debug("Auth token (masked): ****%s", auth_token[-8:])
             sess = session.Session(auth=None, token=auth_token)
             keystone = keystone_client.Client(
                 session=sess, endpoint=CONF.keystone_authtoken.auth_url
             )
 
-        LOG.debug("Calling keystone.projects.list_tags(project_id=%s)", project_id)
-        tags_response = keystone.projects.list_tags(project_id)
+        # Step 1: Get domain_id from project
+        project = keystone.projects.get(project_id)
+        domain_id = getattr(project, "domain_id", None)
+        if not domain_id:
+            LOG.warning("Project %s has no domain_id", project_id)
+            return []
+
+        LOG.debug("Extracted domain_id=%s from project_id=%s", domain_id, project_id)
+
+        # Step 2: Try to list tags on domain_id (as project)
+        LOG.debug("Calling keystone.projects.list_tags(domain_id=%s)", domain_id)
+        tags_response = keystone.projects.list_tags(domain_id)
 
         LOG.debug("Raw tags_response type=%s value=%s", type(tags_response), tags_response)
 
@@ -118,17 +114,19 @@ def fetch_project_tags(project_id, auth_token=None):
             else tags_response
         )
 
-        LOG.debug("Extracted tags: %s", tags)
+        LOG.debug("Extracted tags from domain_id: %s", tags)
         return tags
 
     except Exception as e:
         LOG.warning(
-            "Failed to fetch project tags for project %s: %s",
+            "Failed to fetch domain tags using project_id=%s domain_id=%s: %s",
             project_id,
+            domain_id,
             e,
             exc_info=True,
         )
         return []
+
 
 def chunkreadable(iter, chunk_size=65536):
     """
