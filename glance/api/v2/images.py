@@ -517,10 +517,10 @@ class ImagesController(object):
 
         return image_id
 
-    def index(self, req, marker=None, limit=None, sort_key=None,
-              sort_dir=None, filters=None, member_status='accepted'):
-        sort_key = ['created_at'] if not sort_key else sort_key
 
+    def index(self, req, marker=None, limit=None, sort_key=None,
+            sort_dir=None, filters=None, member_status='accepted'):
+        sort_key = ['created_at'] if not sort_key else sort_key
         sort_dir = ['desc'] if not sort_dir else sort_dir
 
         result = {}
@@ -558,15 +558,34 @@ class ImagesController(object):
             self.policy.enforce(req.context, 'get_images', target)
 
             images = image_repo.list(marker=marker, limit=limit,
-                                     sort_key=sort_key,
-                                     sort_dir=sort_dir,
-                                     filters=filters,
-                                     member_status=member_status)
+                                    sort_key=sort_key,
+                                    sort_dir=sort_dir,
+                                    filters=filters,
+                                    member_status=member_status)
             db_image_count = len(images)
             images = [image for image in images
-                      if api_policy.ImageAPIPolicy(req.context, image,
-                                                   self.policy
-                                                   ).check('get_image')]
+                    if api_policy.ImageAPIPolicy(req.context, image,
+                                                self.policy
+                                                ).check('get_image')]
+
+            # ✅ Apply domain_tags filter only if domain_name starts with 'iaas'
+            domain_name = getattr(req.context, 'domain_name', None)
+            LOG.debug("Request context domain_name: %s", domain_name)
+
+            requested_domain_tags = filters.get('domain_tags', [])
+
+            if domain_name and domain_name.startswith('iaas') and requested_domain_tags:
+                LOG.debug("Filtering images by domain_tags: %s", requested_domain_tags)
+                filtered_images = []
+                for image in images:
+                    image_tags_json = image.extra_properties.get('domain_tags', '[]')
+                    try:
+                        image_domain_tags = json.loads(image_tags_json)
+                    except (ValueError, TypeError):
+                        image_domain_tags = []
+                    if set(requested_domain_tags).issubset(set(image_domain_tags)):
+                        filtered_images.append(image)
+                images = filtered_images
 
             # NOTE(danms): we need to include the next marker if the DB
             # paginated. Since we filter images based on policy, we can
@@ -574,6 +593,7 @@ class ImagesController(object):
             # so use the original count.
             if len(images) != 0 and db_image_count == limit:
                 result['next_marker'] = images[-1].image_id
+
         except (exception.NotFound, exception.InvalidSortKey,
                 exception.InvalidFilterRangeValue,
                 exception.InvalidParameterValue,
@@ -584,6 +604,7 @@ class ImagesController(object):
             raise webob.exc.HTTPForbidden(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
+
         result['images'] = images
         return result
 
