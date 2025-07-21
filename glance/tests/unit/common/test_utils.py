@@ -845,6 +845,14 @@ class TestUtils(test_utils.BaseTestCase):
         loc_url = BASE_URI
         self.assertTrue(utils.is_http_store_configured(loc_url))
 
+    def test_fetch_project_tags_service_user_disabled(self):
+        with mock.patch('glance.common.utils.keystone_client.Client') as mock_client:
+            self.config(enabled=False, group='glance_service_user')
+            context = mock.Mock(auth_token='fake-token')
+            mock_client.return_value.projects.list_tags.return_value = {'tags': ['foo', 'bar']}
+
+            tags = utils.fetch_project_tags('project-id', auth_token='fake-token')
+            self.assertEqual(['foo', 'bar'], tags)
 
 class SplitFilterOpTestCase(test_utils.BaseTestCase):
 

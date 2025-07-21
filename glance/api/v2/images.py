@@ -581,9 +581,15 @@ class ImagesController(object):
         image_repo = self.gateway.get_repo(req.context)
         try:
             image = image_repo.get(image_id)
-            api_policy.ImageAPIPolicy(req.context, image,
-                                      self.policy).get_image()
+            api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
+
+            if getattr(CONF, 'show_project_tags', False):
+                tags = utils.fetch_project_tags(image.owner, auth_token=req.context.auth_token)
+                image.extra_properties['project_tags'] = tags
+                LOG.debug("Attached project tags to image %s: %s", image_id, tags)
+
             return image
+
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:

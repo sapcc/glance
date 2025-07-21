@@ -46,6 +46,9 @@ from glance.common import timeutils
 from glance.common import wsgi
 from glance.i18n import _, _LE, _LW
 
+from keystoneauth1 import loading, session
+from keystoneclient.v3 import client as keystone_client
+
 CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
@@ -65,6 +68,67 @@ IMAGE_META_HEADERS = ['x-image-meta-location', 'x-image-meta-size',
 
 GLANCE_TEST_SOCKET_FD_STR = 'GLANCE_TEST_SOCKET_FD'
 
+def fetch_project_tags(project_id, auth_token=None):
+    try:
+        LOG.debug("Starting fetch_project_tags for project_id=%s", project_id)
+
+        if CONF.glance_service_user.enabled:
+            LOG.debug("Using service user flow")
+            LOG.debug(
+                "Service user details: username=%s, user_domain=%s, project=%s, project_domain=%s",
+                CONF.glance_service_user.username,
+                CONF.glance_service_user.user_domain_name,
+                CONF.glance_service_user.project_name,
+                CONF.glance_service_user.project_domain_name,
+            )
+
+            loader = loading.get_plugin_loader("password")
+            auth = loader.load_from_options(
+                auth_url=CONF.keystone_authtoken.auth_url,
+                username=CONF.glance_service_user.username,
+                password=CONF.glance_service_user.password,
+                user_domain_name=CONF.glance_service_user.user_domain_name,
+                project_name=CONF.glance_service_user.project_name,
+                project_domain_name=CONF.glance_service_user.project_domain_name,
+            )
+            sess = session.Session(auth=auth)
+            keystone = keystone_client.Client(session=sess)
+
+        else:
+            LOG.debug("Using user token flow")
+
+            if not auth_token:
+                LOG.error("No auth_token provided in user token flow")
+                raise Exception("No auth token provided for user token mode")
+
+            LOG.debug("Auth token (masked): ****%s", auth_token[-8:])
+            sess = session.Session(auth=None, token=auth_token)
+            keystone = keystone_client.Client(
+                session=sess, endpoint=CONF.keystone_authtoken.auth_url
+            )
+
+        LOG.debug("Calling keystone.projects.list_tags(project_id=%s)", project_id)
+        tags_response = keystone.projects.list_tags(project_id)
+
+        LOG.debug("Raw tags_response type=%s value=%s", type(tags_response), tags_response)
+
+        tags = (
+            tags_response.get("tags", tags_response)
+            if isinstance(tags_response, dict)
+            else tags_response
+        )
+
+        LOG.debug("Extracted tags: %s", tags)
+        return tags
+
+    except Exception as e:
+        LOG.warning(
+            "Failed to fetch project tags for project %s: %s",
+            project_id,
+            e,
+            exc_info=True,
+        )
+        return []
 
 def chunkreadable(iter, chunk_size=65536):
     """

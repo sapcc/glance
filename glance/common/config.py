@@ -29,6 +29,41 @@ from paste import deploy
 from glance.i18n import _
 from glance.version import version_info as version
 
+show_project_tags_opt = cfg.BoolOpt(
+    "show_project_tags",
+    default=False,
+    help="""
+Enable showing Keystone project tags in image details.
+
+When enabled, the Glance API will attempt to fetch the project's tags
+from Keystone and include them in the image's extra_properties
+under the 'project_tags' key. This may result in additional
+API calls to Keystone, depending on configuration.
+""",
+)
+
+CONF = cfg.CONF
+CONF.register_opt(show_project_tags_opt)
+
+# Glance Service User group and options
+glance_service_user_group = cfg.OptGroup(
+    name="glance_service_user",
+    title="Glance Service User Options",
+    help="Options for the service user that Glance can use to fetch project tags or interact with Keystone.",
+)
+
+glance_service_user_opts = [
+    cfg.StrOpt("username", help="Service user name"),
+    cfg.StrOpt('password', secret=True, help='Service user password'),
+    cfg.StrOpt("user_domain_name", default="Default", help="User domain name"),
+    cfg.StrOpt("project_name", help="Service user project name"),
+    cfg.StrOpt("project_domain_name", default="Default", help="Project domain name"),
+    cfg.BoolOpt("enabled", default=False, help="Enable service user integration"),
+]
+
+CONF.register_group(glance_service_user_group)
+CONF.register_opts(glance_service_user_opts, group="glance_service_user")
+
 paste_deploy_opts = [
     cfg.StrOpt('flavor',
                sample_default='keystone',
