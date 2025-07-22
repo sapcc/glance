@@ -46,6 +46,9 @@ from glance.common import timeutils
 from glance.common import wsgi
 from glance.i18n import _, _LE, _LW
 
+from keystoneauth1 import loading, session
+from keystoneclient.v3 import client as keystone_client
+
 CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
@@ -65,6 +68,74 @@ IMAGE_META_HEADERS = ['x-image-meta-location', 'x-image-meta-size',
 
 GLANCE_TEST_SOCKET_FD_STR = 'GLANCE_TEST_SOCKET_FD'
 
+def fetch_domain_info(project_id, auth_token=None):
+    try:
+        LOG.debug("Starting fetch_domain_info for project_id=%s", project_id)
+
+        # Setup Keystone client
+        if CONF.glance_service_user.enabled:
+            loader = loading.get_plugin_loader("password")
+            auth = loader.load_from_options(
+                auth_url=CONF.keystone_authtoken.auth_url,
+                username=CONF.glance_service_user.username,
+                password=CONF.glance_service_user.password,
+                user_domain_name=CONF.glance_service_user.user_domain_name,
+                project_name=CONF.glance_service_user.project_name,
+                project_domain_name=CONF.glance_service_user.project_domain_name,
+            )
+            sess = session.Session(auth=auth)
+            keystone = keystone_client.Client(session=sess)
+        else:
+            if not auth_token:
+                raise Exception("No auth token provided for user token mode")
+            sess = session.Session(auth=None, token=auth_token)
+            keystone = keystone_client.Client(
+                session=sess, endpoint=CONF.keystone_authtoken.auth_url
+            )
+
+        # Step 1: Get domain_id from project
+        project = keystone.projects.get(project_id)
+        domain_id = getattr(project, "domain_id", None)
+        if not domain_id:
+            LOG.warning("Project %s has no domain_id", project_id)
+            return {"domain_id": "", "domain_name": "", "tags": []}
+
+        LOG.debug("Extracted domain_id=%s from project_id=%s", domain_id, project_id)
+
+        # Step 2: Get domain name
+        domain = keystone.domains.get(domain_id)
+        domain_name = getattr(domain, "name", "")
+        LOG.debug("Extracted domain_name=%s from domain_id=%s", domain_name, domain_id)
+
+        # Step 3: List tags on domain_id (as project)
+        LOG.debug("Calling keystone.projects.list_tags(domain_id=%s)", domain_id)
+        tags_response = keystone.projects.list_tags(domain_id)
+
+        LOG.debug("Raw tags_response type=%s value=%s", type(tags_response), tags_response)
+
+        tags = (
+            tags_response.get("tags", tags_response)
+            if isinstance(tags_response, dict)
+            else tags_response
+        )
+
+        LOG.debug("Extracted tags from domain_id: %s", tags)
+
+        return {
+            "domain_id": str(domain_id),
+            "domain_name": str(domain_name),
+            "tags": [str(tag) for tag in tags],
+        }
+
+    except Exception as e:
+        LOG.warning(
+            "Failed to fetch domain info using project_id=%s domain_id=%s: %s",
+            project_id,
+            domain_id if 'domain_id' in locals() else None,
+            e,
+            exc_info=True,
+        )
+        return {"domain_id": "", "domain_name": "", "tags": []}
 
 def chunkreadable(iter, chunk_size=65536):
     """

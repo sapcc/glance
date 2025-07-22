@@ -19,6 +19,7 @@ import os
 import re
 import urllib.parse as urlparse
 import uuid
+import json
 
 from castellan.common import exception as castellan_exception
 from castellan import key_manager
@@ -96,18 +97,40 @@ class ImagesController(object):
             if 'owner' not in image:
                 image['owner'] = req.context.project_id
 
-            api_policy.ImageAPIPolicy(req.context, image,
-                                      self.policy).add_image()
+            api_policy.ImageAPIPolicy(req.context, image, self.policy).add_image()
 
             ks_quota.enforce_image_count_total(req.context, req.context.owner)
+
+            # ✅ Attach domain info if enabled
+            if getattr(CONF, 'show_domain_info', False):
+                domain_info = utils.fetch_domain_info(image['owner'], auth_token=req.context.auth_token)
+                if domain_info:
+                    extra_properties['domain_id'] = str(domain_info.get('domain_id', ''))
+                    extra_properties['domain_name'] = str(domain_info.get('domain_name', ''))
+                    tags_list = domain_info.get('domain_tags', [])
+                    if isinstance(tags_list, list):
+                        extra_properties['domain_tags'] = ','.join(tags_list)
+                    else:
+                        extra_properties['domain_tags'] = str(tags_list)
+                    LOG.debug("Attached domain info to image during create (no ID): %s", domain_info)
+            else:
+                # ✅ Fallback to context domain_tags if present
+                tags_list = getattr(req.context, 'domain_tags', None)
+                if tags_list:
+                    if isinstance(tags_list, list):
+                        extra_properties['domain_tags'] = ','.join(tags_list)
+                    else:
+                        extra_properties['domain_tags'] = str(tags_list)
+                    LOG.debug("Attached project tags to image during create (no ID): %s", tags_list)
+
             image = image_factory.new_image(extra_properties=extra_properties,
                                             tags=tags, **image)
+
             image_repo.add(image)
-        except (exception.DuplicateLocation,
-                exception.Invalid) as e:
+
+        except (exception.DuplicateLocation, exception.Invalid) as e:
             raise webob.exc.HTTPBadRequest(explanation=e.msg)
-        except (exception.ReservedProperty,
-                exception.ReadonlyProperty) as e:
+        except (exception.ReservedProperty, exception.ReadonlyProperty) as e:
             raise webob.exc.HTTPForbidden(explanation=e.msg)
         except exception.Forbidden as e:
             LOG.debug("User not permitted to create image")
@@ -507,10 +530,10 @@ class ImagesController(object):
 
         return image_id
 
-    def index(self, req, marker=None, limit=None, sort_key=None,
-              sort_dir=None, filters=None, member_status='accepted'):
-        sort_key = ['created_at'] if not sort_key else sort_key
 
+    def index(self, req, marker=None, limit=None, sort_key=None,
+            sort_dir=None, filters=None, member_status='accepted'):
+        sort_key = ['created_at'] if not sort_key else sort_key
         sort_dir = ['desc'] if not sort_dir else sort_dir
 
         result = {}
@@ -523,7 +546,6 @@ class ImagesController(object):
             message = _("Invalid value '%s' for 'os_hidden' filter."
                         " Valid values are 'true' or 'false'.") % os_hidden
             raise webob.exc.HTTPBadRequest(explanation=message)
-        # ensure the type of os_hidden is boolean
         filters['os_hidden'] = os_hidden == 'true'
 
         protected = filters.get('protected')
@@ -532,7 +554,6 @@ class ImagesController(object):
                 message = _("Invalid value '%s' for 'protected' filter."
                             " Valid values are 'true' or 'false'.") % protected
                 raise webob.exc.HTTPBadRequest(explanation=message)
-            # ensure the type of protected is boolean
             filters['protected'] = protected == 'true'
 
         if limit is None:
@@ -541,29 +562,56 @@ class ImagesController(object):
 
         image_repo = self.gateway.get_repo(req.context)
         try:
-            # NOTE(danms): This is just a "do you have permission to
-            # list images" check. Each image is checked against
-            # get_image below.
             target = {'project_id': req.context.project_id}
             self.policy.enforce(req.context, 'get_images', target)
 
             images = image_repo.list(marker=marker, limit=limit,
-                                     sort_key=sort_key,
-                                     sort_dir=sort_dir,
-                                     filters=filters,
-                                     member_status=member_status)
+                                    sort_key=sort_key,
+                                    sort_dir=sort_dir,
+                                    filters=filters,
+                                    member_status=member_status)
             db_image_count = len(images)
             images = [image for image in images
-                      if api_policy.ImageAPIPolicy(req.context, image,
-                                                   self.policy
-                                                   ).check('get_image')]
+                    if api_policy.ImageAPIPolicy(req.context, image,
+                                                self.policy
+                                                ).check('get_image')]
 
-            # NOTE(danms): we need to include the next marker if the DB
-            # paginated. Since we filter images based on policy, we can
-            # not determine if pagination happened from the final list,
-            # so use the original count.
+            requested_domain_tags = filters.get('domain_tags')
+            if isinstance(requested_domain_tags, str):
+                requested_domain_tags = [requested_domain_tags]
+
+            domain_name = getattr(req.context, 'domain_name', None)
+            if domain_name and domain_name.startswith('iaas'):
+                LOG.debug("Request context domain_name: %s", domain_name)
+
+                # ✅ Attach domain info to each image if enabled
+                if getattr(CONF, 'show_domain_info', False):
+                    for image in images:
+                        domain_info = utils.fetch_domain_info(image.owner, auth_token=req.context.auth_token)
+                        if domain_info:
+                            image.extra_properties['domain_id'] = str(domain_info.get('domain_id', ''))
+                            image.extra_properties['domain_name'] = str(domain_info.get('domain_name', ''))
+                            tags = domain_info.get('tags', [])
+                            if isinstance(tags, list):
+                                image.extra_properties['domain_tags'] = ','.join(tags)
+                            else:
+                                image.extra_properties['domain_tags'] = str(tags)
+                            LOG.debug("Attached domain info to image %s: %s", image.image_id, domain_info)
+
+                # ✅ Apply domain_tags filter
+                if requested_domain_tags:
+                    LOG.debug("Filtering images by domain_tags: %s", requested_domain_tags)
+                    filtered_images = []
+                    for image in images:
+                        image_tags_str = image.extra_properties.get('domain_tags', '')
+                        image_domain_tags = [tag.strip() for tag in image_tags_str.split(',') if tag.strip()]
+                        if set(requested_domain_tags).issubset(set(image_domain_tags)):
+                            filtered_images.append(image)
+                    images = filtered_images
+
             if len(images) != 0 and db_image_count == limit:
                 result['next_marker'] = images[-1].image_id
+
         except (exception.NotFound, exception.InvalidSortKey,
                 exception.InvalidFilterRangeValue,
                 exception.InvalidParameterValue,
@@ -574,6 +622,7 @@ class ImagesController(object):
             raise webob.exc.HTTPForbidden(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
+
         result['images'] = images
         return result
 
@@ -581,13 +630,28 @@ class ImagesController(object):
         image_repo = self.gateway.get_repo(req.context)
         try:
             image = image_repo.get(image_id)
-            api_policy.ImageAPIPolicy(req.context, image,
-                                      self.policy).get_image()
+            api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
+
+            if getattr(CONF, 'show_domain_info', False):
+                domain_info = utils.fetch_domain_info(image.owner, auth_token=req.context.auth_token)
+                if domain_info:
+                    image.extra_properties['domain_id'] = str(domain_info.get('domain_id', ''))
+                    image.extra_properties['domain_name'] = str(domain_info.get('domain_name', ''))
+                    tags = domain_info.get('tags', [])
+                    if isinstance(tags, list):
+                        image.extra_properties['domain_tags'] = ','.join(tags)
+                    else:
+                        image.extra_properties['domain_tags'] = str(tags)
+                    LOG.debug("Attached domain info to image %s: %s", image_id, domain_info)
+
             return image
+
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
+
+
 
     def get_task_info(self, req, image_id):
         image_repo = self.gateway.get_repo(req.context)
@@ -1720,17 +1784,32 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
 
         try:
             image_view = {k: v for k, v in dict(image.extra_properties).items()
-                          if k not in self._hidden_properties}
+                        if k not in self._hidden_properties}
+
             attributes = ['name', 'disk_format', 'container_format',
-                          'visibility', 'size', 'virtual_size', 'status',
-                          'checksum', 'protected', 'min_ram', 'min_disk',
-                          'owner', 'os_hidden', 'os_hash_algo',
-                          'os_hash_value']
+                        'visibility', 'size', 'virtual_size', 'status',
+                        'checksum', 'protected', 'min_ram', 'min_disk',
+                        'owner', 'os_hidden', 'os_hash_algo',
+                        'os_hash_value']
+
             for key in attributes:
                 image_view[key] = getattr(image, key)
             image_view['id'] = image.image_id
             image_view['created_at'] = timeutils.isotime(image.created_at)
             image_view['updated_at'] = timeutils.isotime(image.updated_at)
+
+            # ✅ Add domain_id as string if present
+            if 'domain_id' in image.extra_properties:
+                image_view['domain_id'] = str(image.extra_properties.get('domain_id', ''))
+            # ✅ Add domain_name as string if present
+            if 'domain_name' in image.extra_properties:
+                image_view['domain_name'] = str(image.extra_properties.get('domain_name', ''))
+            # ✅ Ensure domain_tags is always a string
+            if 'domain_tags' in image.extra_properties:
+                domain_tags = image.extra_properties.get('domain_tags', '')
+                if isinstance(domain_tags, list):
+                    domain_tags = ','.join(domain_tags)
+                image_view['domain_tags'] = domain_tags
 
             if CONF.show_multiple_locations:
                 locations = _get_image_locations(image)
@@ -1742,31 +1821,26 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
                         tmp.pop('status', None)
                         image_view['locations'].append(tmp)
                 else:
-                    # NOTE (flwang): We will still show "locations": [] if
-                    # image.locations is None to indicate it's allowed to show
-                    # locations but it's just non-existent.
                     image_view['locations'] = []
                     LOG.debug("The 'locations' list of image %s is empty",
-                              image.image_id)
+                            image.image_id)
 
             if CONF.show_image_direct_url:
                 locations = _get_image_locations(image)
                 if locations:
-                    # Choose best location configured strategy
                     loc = utils.sort_image_locations(locations)[0]
                     image_view['direct_url'] = loc['url']
                 else:
                     LOG.debug("The 'locations' list of image %s is empty, "
-                              "not including 'direct_url' in response",
-                              image.image_id)
+                            "not including 'direct_url' in response",
+                            image.image_id)
 
             image_view['tags'] = list(image.tags)
             image_view['self'] = self._get_image_href(image)
             image_view['file'] = self._get_image_href(image, 'file')
             image_view['schema'] = '/v2/schemas/image'
-            image_view = self.schema.filter(image_view)  # domain
+            image_view = self.schema.filter(image_view)
 
-            # add store information to image
             if CONF.enabled_backends:
                 locations = _get_image_locations(image)
                 if locations:
@@ -1775,13 +1849,13 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
                         backend = loc['metadata'].get('store')
                         if backend:
                             stores.append(backend)
-
                     if stores:
                         image_view['stores'] = ",".join(stores)
 
             return image_view
         except exception.Forbidden as e:
             raise webob.exc.HTTPForbidden(explanation=e.msg)
+
 
     def create(self, response, image):
         response.status_int = http.CREATED
