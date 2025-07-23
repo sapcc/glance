@@ -101,7 +101,7 @@ class ImagesController(object):
             api_policy.ImageAPIPolicy(req.context, image, self.policy).add_image()
             ks_quota.enforce_image_count_total(req.context, req.context.owner)
 
-            # ✅ Attach domain info if enabled
+            # Attach domain info if enabled
             if getattr(CONF, 'show_domain_info', False):
                 domain_info = utils.fetch_domain_info(image['owner'], auth_token=req.context.auth_token)
                 if domain_info:
@@ -122,7 +122,7 @@ class ImagesController(object):
                         extra_properties['domain_tags'] = str(tags_list)
                     LOG.debug("Attached project tags to image during create (no ID): %s", tags_list)
 
-            # ✅ Add domain-project scoped tag for iaas domains
+            # Add domain-project scoped tag for iaas domains
             user_domain = getattr(req.context, 'user_domain_name', None)
             project_id = getattr(req.context, 'project_id', None)
             if user_domain and user_domain.startswith('iaas') and project_id:
@@ -642,6 +642,8 @@ class ImagesController(object):
             image = image_repo.get(image_id)
             api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
 
+            domain_info = None
+
             if getattr(CONF, 'show_domain_info', False):
                 domain_info = utils.fetch_domain_info(image.owner, auth_token=req.context.auth_token)
                 if domain_info:
@@ -654,7 +656,7 @@ class ImagesController(object):
                         image.extra_properties['domain_tags'] = str(tags)
                     LOG.debug("Attached domain info to image %s: %s", image_id, domain_info)
 
-            # ✅ NEW: Check <domain_name>-<project_id> tag for iaas-* domains
+            # NEW: Check <domain_name>-<project_id> tag for iaas-* domains
             domain_name = (
                 domain_info.get('domain_name')
                 if domain_info and 'domain_name' in domain_info
@@ -1821,13 +1823,13 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
             image_view['created_at'] = timeutils.isotime(image.created_at)
             image_view['updated_at'] = timeutils.isotime(image.updated_at)
 
-            # ✅ Add domain_id as string if present
+            # Add domain_id as string if present
             if 'domain_id' in image.extra_properties:
                 image_view['domain_id'] = str(image.extra_properties.get('domain_id', ''))
-            # ✅ Add domain_name as string if present
+            # Add domain_name as string if present
             if 'domain_name' in image.extra_properties:
                 image_view['domain_name'] = str(image.extra_properties.get('domain_name', ''))
-            # ✅ Ensure domain_tags is always a string
+            # Ensure domain_tags is always a string
             if 'domain_tags' in image.extra_properties:
                 domain_tags = image.extra_properties.get('domain_tags', '')
                 if isinstance(domain_tags, list):
