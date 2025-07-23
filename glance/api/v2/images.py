@@ -1844,6 +1844,9 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
                         tmp.pop('status', None)
                         image_view['locations'].append(tmp)
                 else:
+                    # NOTE (flwang): We will still show "locations": [] if
+                    # image.locations is None to indicate it's allowed to show
+                    # locations but it's just non-existent.
                     image_view['locations'] = []
                     LOG.debug("The 'locations' list of image %s is empty",
                             image.image_id)
@@ -1862,7 +1865,7 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
             image_view['self'] = self._get_image_href(image)
             image_view['file'] = self._get_image_href(image, 'file')
             image_view['schema'] = '/v2/schemas/image'
-            image_view = self.schema.filter(image_view)
+            image_view = self.schema.filter(image_view)   # domain
 
             if CONF.enabled_backends:
                 locations = _get_image_locations(image)
