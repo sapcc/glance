@@ -546,6 +546,7 @@ class ImagesController(object):
             message = _("Invalid value '%s' for 'os_hidden' filter."
                         " Valid values are 'true' or 'false'.") % os_hidden
             raise webob.exc.HTTPBadRequest(explanation=message)
+        # ensure the type of os_hidden is boolean
         filters['os_hidden'] = os_hidden == 'true'
 
         protected = filters.get('protected')
@@ -554,6 +555,7 @@ class ImagesController(object):
                 message = _("Invalid value '%s' for 'protected' filter."
                             " Valid values are 'true' or 'false'.") % protected
                 raise webob.exc.HTTPBadRequest(explanation=message)
+            # ensure the type of protected is boolean
             filters['protected'] = protected == 'true'
 
         if limit is None:
@@ -562,6 +564,9 @@ class ImagesController(object):
 
         image_repo = self.gateway.get_repo(req.context)
         try:
+            # NOTE(danms): This is just a "do you have permission to
+            # list images" check. Each image is checked against
+            # get_image below.
             target = {'project_id': req.context.project_id}
             self.policy.enforce(req.context, 'get_images', target)
 
@@ -576,42 +581,35 @@ class ImagesController(object):
                                                 self.policy
                                                 ).check('get_image')]
 
-            requested_domain_tags = filters.get('domain_tags')
-            if isinstance(requested_domain_tags, str):
-                requested_domain_tags = [requested_domain_tags]
+            # CUSTOM: Determine effective domain name
+            domain_name = (
+                getattr(req.context, 'domain_name', None) or
+                getattr(req.context, 'user_domain_name', None)
+            )
+            LOG.debug("[IAAS_FILTER] Effective domain_name: %s", domain_name)
 
-            domain_name = getattr(req.context, 'domain_name', None)
+            # CUSTOM: Enforce iaas_restricted tag for iaas domains
             if domain_name and domain_name.startswith('iaas'):
-                LOG.debug("Request context domain_name: %s", domain_name)
+                LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Enforcing iaas_restricted tag filtering...", domain_name)
 
-                # ✅ Attach domain info to each image if enabled
-                if getattr(CONF, 'show_domain_info', False):
-                    for image in images:
-                        domain_info = utils.fetch_domain_info(image.owner, auth_token=req.context.auth_token)
-                        if domain_info:
-                            image.extra_properties['domain_id'] = str(domain_info.get('domain_id', ''))
-                            image.extra_properties['domain_name'] = str(domain_info.get('domain_name', ''))
-                            tags = domain_info.get('tags', [])
-                            if isinstance(tags, list):
-                                image.extra_properties['domain_tags'] = ','.join(tags)
-                            else:
-                                image.extra_properties['domain_tags'] = str(tags)
-                            LOG.debug("Attached domain info to image %s: %s", image.image_id, domain_info)
+                filtered_images = []
+                for img in images:
+                    image_tags = getattr(img, 'tags', [])
+                    if 'iaas_restricted' in image_tags:
+                        LOG.debug("[IAAS_FILTER] ALLOWED: image '%s' contains 'iaas_restricted' tag", img.image_id)
+                        filtered_images.append(img)
+                    else:
+                        LOG.debug("[IAAS_FILTER] SKIPPED: image '%s' does NOT contain 'iaas_restricted' tag", img.image_id)
 
-                # ✅ Apply domain_tags filter
-                if requested_domain_tags:
-                    LOG.debug("Filtering images by domain_tags: %s", requested_domain_tags)
-                    filtered_images = []
-                    for image in images:
-                        image_tags_str = image.extra_properties.get('domain_tags', '')
-                        image_domain_tags = [tag.strip() for tag in image_tags_str.split(',') if tag.strip()]
-                        if set(requested_domain_tags).issubset(set(image_domain_tags)):
-                            filtered_images.append(image)
-                    images = filtered_images
+                images = filtered_images
+                LOG.debug("[IAAS_FILTER] Final image count after filtering: %d", len(images))
 
+            # NOTE(danms): we need to include the next marker if the DB
+            # paginated. Since we filter images based on policy, we can
+            # not determine if pagination happened from the final list,
+            # so use the original count.
             if len(images) != 0 and db_image_count == limit:
                 result['next_marker'] = images[-1].image_id
-
         except (exception.NotFound, exception.InvalidSortKey,
                 exception.InvalidFilterRangeValue,
                 exception.InvalidParameterValue,
@@ -644,13 +642,18 @@ class ImagesController(object):
                         image.extra_properties['domain_tags'] = str(tags)
                     LOG.debug("Attached domain info to image %s: %s", image_id, domain_info)
 
+            # ✅ NEW: Check iaas_restricted tag for iaas-* domains
+            if str(domain_info.get('domain_name', '')).startswith('iaas'):
+                if 'iaas_restricted' not in image.tags:
+                    LOG.debug("Blocking image %s (no iaas_restricted tag for iaas domain)", image_id)
+                    raise webob.exc.HTTPNotFound(explanation="Image not found")
+
             return image
 
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
-
 
 
     def get_task_info(self, req, image_id):
