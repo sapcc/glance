@@ -54,19 +54,32 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 # Whitelist of v1 API headers of form x-image-meta-xxx
-IMAGE_META_HEADERS = ['x-image-meta-location', 'x-image-meta-size',
-                      'x-image-meta-is_public', 'x-image-meta-disk_format',
-                      'x-image-meta-container_format', 'x-image-meta-name',
-                      'x-image-meta-status', 'x-image-meta-copy_from',
-                      'x-image-meta-uri', 'x-image-meta-checksum',
-                      'x-image-meta-created_at', 'x-image-meta-updated_at',
-                      'x-image-meta-deleted_at', 'x-image-meta-min_ram',
-                      'x-image-meta-min_disk', 'x-image-meta-owner',
-                      'x-image-meta-store', 'x-image-meta-id',
-                      'x-image-meta-protected', 'x-image-meta-deleted',
-                      'x-image-meta-virtual_size']
+IMAGE_META_HEADERS = [
+    "x-image-meta-location",
+    "x-image-meta-size",
+    "x-image-meta-is_public",
+    "x-image-meta-disk_format",
+    "x-image-meta-container_format",
+    "x-image-meta-name",
+    "x-image-meta-status",
+    "x-image-meta-copy_from",
+    "x-image-meta-uri",
+    "x-image-meta-checksum",
+    "x-image-meta-created_at",
+    "x-image-meta-updated_at",
+    "x-image-meta-deleted_at",
+    "x-image-meta-min_ram",
+    "x-image-meta-min_disk",
+    "x-image-meta-owner",
+    "x-image-meta-store",
+    "x-image-meta-id",
+    "x-image-meta-protected",
+    "x-image-meta-deleted",
+    "x-image-meta-virtual_size",
+]
 
-GLANCE_TEST_SOCKET_FD_STR = 'GLANCE_TEST_SOCKET_FD'
+GLANCE_TEST_SOCKET_FD_STR = "GLANCE_TEST_SOCKET_FD"
+
 
 def fetch_domain_info(project_id, auth_token=None):
     try:
@@ -111,7 +124,9 @@ def fetch_domain_info(project_id, auth_token=None):
         LOG.debug("Calling keystone.projects.list_tags(domain_id=%s)", domain_id)
         tags_response = keystone.projects.list_tags(domain_id)
 
-        LOG.debug("Raw tags_response type=%s value=%s", type(tags_response), tags_response)
+        LOG.debug(
+            "Raw tags_response type=%s value=%s", type(tags_response), tags_response
+        )
 
         tags = (
             tags_response.get("tags", tags_response)
@@ -131,11 +146,12 @@ def fetch_domain_info(project_id, auth_token=None):
         LOG.warning(
             "Failed to fetch domain info using project_id=%s domain_id=%s: %s",
             project_id,
-            domain_id if 'domain_id' in locals() else None,
+            domain_id if "domain_id" in locals() else None,
             e,
             exc_info=True,
         )
         return {"domain_id": "", "domain_name": "", "tags": []}
+
 
 def chunkreadable(iter, chunk_size=65536):
     """
@@ -145,7 +161,7 @@ def chunkreadable(iter, chunk_size=65536):
     :param iter: an iter which may also be readable
     :param chunk_size: maximum size of chunk
     """
-    return chunkiter(iter, chunk_size) if hasattr(iter, 'read') else iter
+    return chunkiter(iter, chunk_size) if hasattr(iter, "read") else iter
 
 
 def chunkiter(fp, chunk_size=65536):
@@ -187,17 +203,18 @@ def cooperative_read(fd):
 
     :param fd: a file descriptor to wrap
     """
+
     def readfn(*args):
         result = fd.read(*args)
         sleep(0)
         return result
+
     return readfn
 
 
 MAX_COOP_READER_BUFFER_SIZE = 134217728  # 128M seems like a sane buffer limit
 
-CONF.import_group('import_filtering_opts',
-                  'glance.async_.flows._internal_plugins')
+CONF.import_group("import_filtering_opts", "glance.async_.flows._internal_plugins")
 
 
 def validate_import_uri(uri):
@@ -223,25 +240,30 @@ def validate_import_uri(uri):
     # logging it to inform only allowed will be obeyed.
     if wl_schemes and bl_schemes:
         bl_schemes = []
-        LOG.debug("Both allowed and disallowed schemes has been configured. "
-                  "Will only process allowed list.")
+        LOG.debug(
+            "Both allowed and disallowed schemes has been configured. "
+            "Will only process allowed list."
+        )
     if wl_hosts and bl_hosts:
         bl_hosts = []
-        LOG.debug("Both allowed and disallowed hosts has been configured. "
-                  "Will only process allowed list.")
+        LOG.debug(
+            "Both allowed and disallowed hosts has been configured. "
+            "Will only process allowed list."
+        )
     if wl_ports and bl_ports:
         bl_ports = []
-        LOG.debug("Both allowed and disallowed ports has been configured. "
-                  "Will only process allowed list.")
+        LOG.debug(
+            "Both allowed and disallowed ports has been configured. "
+            "Will only process allowed list."
+        )
 
-    if not scheme or ((wl_schemes and scheme not in wl_schemes) or
-                      parsed_uri.scheme in bl_schemes):
+    if not scheme or (
+        (wl_schemes and scheme not in wl_schemes) or parsed_uri.scheme in bl_schemes
+    ):
         return False
-    if not host or ((wl_hosts and host not in wl_hosts) or
-                    host in bl_hosts):
+    if not host or ((wl_hosts and host not in wl_hosts) or host in bl_hosts):
         return False
-    if port and ((wl_ports and port not in wl_ports) or
-                 port in bl_ports):
+    if port and ((wl_ports and port not in wl_ports) or port in bl_ports):
         return False
 
     return True
@@ -257,6 +279,7 @@ class CooperativeReader(object):
     starvation, ie allows all threads to be scheduled periodically rather than
     having the same thread be continuously active.
     """
+
     def __init__(self, fd):
         """
         :param fd: Underlying image file object
@@ -266,11 +289,11 @@ class CooperativeReader(object):
         # NOTE(markwash): if the underlying supports read(), overwrite the
         # default iterator-based implementation with cooperative_read which
         # is more straightforward
-        if hasattr(fd, 'read'):
+        if hasattr(fd, "read"):
             self.read = cooperative_read(fd)
         else:
             self.iterator = None
-            self.buffer = b''
+            self.buffer = b""
             self.position = 0
 
     def read(self, length=None):
@@ -284,8 +307,8 @@ class CooperativeReader(object):
             if len(self.buffer) - self.position > 0:
                 # if no length specified but some data exists in buffer,
                 # return that data and clear the buffer
-                result = self.buffer[self.position:]
-                self.buffer = b''
+                result = self.buffer[self.position :]
+                self.buffer = b""
                 self.position = 0
                 return bytes(result)
             else:
@@ -297,16 +320,16 @@ class CooperativeReader(object):
                         self.iterator = self.__iter__()
                     return next(self.iterator)
                 except StopIteration:
-                    return b''
+                    return b""
                 finally:
-                    self.buffer = b''
+                    self.buffer = b""
                     self.position = 0
         else:
             result = bytearray()
             while len(result) < length:
                 if self.position < len(self.buffer):
                     to_read = length - len(result)
-                    chunk = self.buffer[self.position:self.position + to_read]
+                    chunk = self.buffer[self.position : self.position + to_read]
                     result.extend(chunk)
 
                     # This check is here to prevent potential OOM issues if
@@ -326,7 +349,7 @@ class CooperativeReader(object):
                         self.buffer = next(self.iterator)
                         self.position = 0
                     except StopIteration:
-                        self.buffer = b''
+                        self.buffer = b""
                         self.position = 0
                         return bytes(result)
             return bytes(result)
@@ -340,8 +363,8 @@ class LimitingReader(object):
     Reader designed to fail when reading image data past the configured
     allowable amount.
     """
-    def __init__(self, data, limit,
-                 exception_class=exception.ImageSizeLimitExceeded):
+
+    def __init__(self, data, limit, exception_class=exception.ImageSizeLimitExceeded):
         """
         :param data: Underlying image data object
         :param limit: maximum number of bytes the reader should allow
@@ -379,11 +402,10 @@ def image_meta_to_http_headers(image_meta):
     headers = {}
     for k, v in image_meta.items():
         if v is not None:
-            if k == 'properties':
+            if k == "properties":
                 for pk, pv in v.items():
                     if pv is not None:
-                        headers["x-image-meta-property-%s"
-                                % pk.lower()] = str(pv)
+                        headers["x-image-meta-property-%s" % pk.lower()] = str(pv)
             else:
                 headers["x-image-meta-%s" % k.lower()] = str(v)
     return headers
@@ -400,26 +422,30 @@ def get_image_meta_from_headers(response):
     result = {}
     properties = {}
 
-    if hasattr(response, 'getheaders'):  # httplib.HTTPResponse
+    if hasattr(response, "getheaders"):  # httplib.HTTPResponse
         headers = response.getheaders()
     else:  # webob.Response
         headers = response.headers.items()
 
     for key, value in headers:
         key = str(key.lower())
-        if key.startswith('x-image-meta-property-'):
-            field_name = key[len('x-image-meta-property-'):].replace('-', '_')
+        if key.startswith("x-image-meta-property-"):
+            field_name = key[len("x-image-meta-property-") :].replace("-", "_")
             properties[field_name] = value or None
-        elif key.startswith('x-image-meta-'):
-            field_name = key[len('x-image-meta-'):].replace('-', '_')
-            if 'x-image-meta-' + field_name not in IMAGE_META_HEADERS:
-                msg = _("Bad header: %(header_name)s") % {'header_name': key}
+        elif key.startswith("x-image-meta-"):
+            field_name = key[len("x-image-meta-") :].replace("-", "_")
+            if "x-image-meta-" + field_name not in IMAGE_META_HEADERS:
+                msg = _("Bad header: %(header_name)s") % {"header_name": key}
                 raise exc.HTTPBadRequest(msg, content_type="text/plain")
             result[field_name] = value or None
-    result['properties'] = properties
+    result["properties"] = properties
 
-    for key, nullable in [('size', False), ('min_disk', False),
-                          ('min_ram', False), ('virtual_size', True)]:
+    for key, nullable in [
+        ("size", False),
+        ("min_disk", False),
+        ("min_ram", False),
+        ("virtual_size", True),
+    ]:
         if key in result:
             try:
                 result[key] = int(result[key])
@@ -427,19 +453,19 @@ def get_image_meta_from_headers(response):
                 if nullable and result[key] == str(None):
                     result[key] = None
                 else:
-                    extra = (_("Cannot convert image %(key)s '%(value)s' "
-                               "to an integer.")
-                             % {'key': key, 'value': result[key]})
-                    raise exception.InvalidParameterValue(value=result[key],
-                                                          param=key,
-                                                          extra_msg=extra)
+                    extra = _(
+                        "Cannot convert image %(key)s '%(value)s' " "to an integer."
+                    ) % {"key": key, "value": result[key]}
+                    raise exception.InvalidParameterValue(
+                        value=result[key], param=key, extra_msg=extra
+                    )
             if result[key] is not None and result[key] < 0:
-                extra = _('Cannot be a negative value.')
-                raise exception.InvalidParameterValue(value=result[key],
-                                                      param=key,
-                                                      extra_msg=extra)
+                extra = _("Cannot be a negative value.")
+                raise exception.InvalidParameterValue(
+                    value=result[key], param=key, extra_msg=extra
+                )
 
-    for key in ('is_public', 'deleted', 'protected'):
+    for key in ("is_public", "deleted", "protected"):
         if key in result:
             result[key] = strutils.bool_from_string(result[key])
     return result
@@ -475,22 +501,25 @@ def safe_mkdirs(path):
 
 def mutating(func):
     """Decorator to enforce read-only logic"""
+
     @functools.wraps(func)
     def wrapped(self, req, *args, **kwargs):
         if req.context.read_only:
             msg = "Read-only access"
             LOG.debug(msg)
-            raise exc.HTTPForbidden(msg, request=req,
-                                    content_type="text/plain")
+            raise exc.HTTPForbidden(msg, request=req, content_type="text/plain")
         return func(self, req, *args, **kwargs)
+
     return wrapped
 
 
 def setup_remote_pydev_debug(host, port):
-    error_msg = _LE('Error setting up the debug environment. Verify that the'
-                    ' option pydev_worker_debug_host is pointing to a valid '
-                    'hostname or IP on which a pydev server is listening on'
-                    ' the port indicated by pydev_worker_debug_port.')
+    error_msg = _LE(
+        "Error setting up the debug environment. Verify that the"
+        " option pydev_worker_debug_host is pointing to a valid "
+        "hostname or IP on which a pydev server is listening on"
+        " the port indicated by pydev_worker_debug_port."
+    )
 
     try:
         try:
@@ -498,10 +527,7 @@ def setup_remote_pydev_debug(host, port):
         except ImportError:
             import pydevd
 
-        pydevd.settrace(host,
-                        port=port,
-                        stdoutToServer=True,
-                        stderrToServer=True)
+        pydevd.settrace(host, port=port, stdoutToServer=True, stderrToServer=True)
         return True
     except Exception:
         with excutils.save_and_reraise_exception():
@@ -522,12 +548,12 @@ def get_test_suite_socket():
 
 def is_valid_hostname(hostname):
     """Verify whether a hostname (not an FQDN) is valid."""
-    return re.match('^[a-zA-Z0-9-]+$', hostname) is not None
+    return re.match("^[a-zA-Z0-9-]+$", hostname) is not None
 
 
 def is_valid_fqdn(fqdn):
     """Verify whether a host is a valid FQDN."""
-    return re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', fqdn) is not None
+    return re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", fqdn) is not None
 
 
 def parse_valid_host_port(host_port):
@@ -554,26 +580,35 @@ def parse_valid_host_port(host_port):
         # should pass a very generic FQDN check. The FQDN check for letters at
         # the tail end will weed out any hilariously absurd IPv4 addresses.
 
-        if not (netutils.is_valid_ipv6(host) or netutils.is_valid_ipv4(host) or
-                is_valid_hostname(host) or is_valid_fqdn(host)):
+        if not (
+            netutils.is_valid_ipv6(host)
+            or netutils.is_valid_ipv4(host)
+            or is_valid_hostname(host)
+            or is_valid_fqdn(host)
+        ):
             raise ValueError(_('Host "%s" is not valid.') % host)
 
     except Exception as ex:
-        raise ValueError(_('%s '
-                           'Please specify a host:port pair, where host is an '
-                           'IPv4 address, IPv6 address, hostname, or FQDN. If '
-                           'using an IPv6 address, enclose it in brackets '
-                           'separately from the port (i.e., '
-                           '"[fe80::a:b:c]:9876").') % ex)
+        raise ValueError(
+            _(
+                "%s "
+                "Please specify a host:port pair, where host is an "
+                "IPv4 address, IPv6 address, hostname, or FQDN. If "
+                "using an IPv6 address, enclose it in brackets "
+                "separately from the port (i.e., "
+                '"[fe80::a:b:c]:9876").'
+            )
+            % ex
+        )
 
     return (host, int(port))
 
 
 try:
-    REGEX_4BYTE_UNICODE = re.compile('[\U00010000-\U0010ffff]')
+    REGEX_4BYTE_UNICODE = re.compile("[\U00010000-\U0010ffff]")
 except re.error:
     # UCS-2 build case
-    REGEX_4BYTE_UNICODE = re.compile('[\uD800-\uDBFF][\uDC00-\uDFFF]')
+    REGEX_4BYTE_UNICODE = re.compile("[\ud800-\udbff][\udc00-\udfff]")
 
 
 def no_4byte_params(f):
@@ -581,12 +616,13 @@ def no_4byte_params(f):
     Checks that no 4 byte unicode characters are allowed
     in dicts' keys/values and string's parameters
     """
+
     def wrapper(*args, **kwargs):
 
         def _is_match(some_str):
             return (
-                isinstance(some_str, str) and
-                REGEX_4BYTE_UNICODE.findall(some_str) != []
+                isinstance(some_str, str)
+                and REGEX_4BYTE_UNICODE.findall(some_str) != []
             )
 
         def _check_dict(data_dict):
@@ -599,8 +635,10 @@ def no_4byte_params(f):
                         msg = _("Property names can't contain 4 byte unicode.")
                         raise exception.Invalid(msg)
                     if _is_match(value):
-                        msg = (_("%s can't contain 4 byte unicode characters.")
-                               % key.title())
+                        msg = (
+                            _("%s can't contain 4 byte unicode characters.")
+                            % key.title()
+                        )
                         raise exception.Invalid(msg)
 
         for data_dict in [arg for arg in args if isinstance(arg, dict)]:
@@ -614,6 +652,7 @@ def no_4byte_params(f):
         # registry calls
         _check_dict(kwargs)
         return f(*args, **kwargs)
+
     return wrapper
 
 
@@ -624,9 +663,9 @@ def stash_conf_values():
     when the config is reloaded.
     """
     conf = {
-        'bind_host': CONF.bind_host,
-        'bind_port': CONF.bind_port,
-        'backlog': CONF.backlog,
+        "bind_host": CONF.bind_host,
+        "bind_port": CONF.bind_port,
+        "backlog": CONF.backlog,
     }
 
     return conf
@@ -641,7 +680,7 @@ def split_filter_op(expression):
 
     :returns: a tuple (operator, threshold) parsed from expression
     """
-    left, sep, right = expression.partition(':')
+    left, sep, right = expression.partition(":")
     if sep:
         # If the expression is a date of the format ISO 8601 like
         # CCYY-MM-DDThh:mm:ss+hh:mm and has no operator, it should
@@ -649,13 +688,13 @@ def split_filter_op(expression):
         # assumed.
         try:
             timeutils.parse_isotime(expression)
-            op = 'eq'
+            op = "eq"
             threshold = expression
         except ValueError:
             op = left
             threshold = right
     else:
-        op = 'eq'  # default operator
+        op = "eq"  # default operator
         threshold = left
 
     # NOTE stevelle decoding escaped values may be needed later
@@ -670,17 +709,27 @@ def validate_quotes(value):
     open_quotes = True
     for i in range(len(value)):
         if value[i] == '"':
-            if i and value[i - 1] == '\\':
+            if i and value[i - 1] == "\\":
                 continue
             if open_quotes:
-                if i and value[i - 1] != ',':
-                    msg = _("Invalid filter value %s. There is no comma "
-                            "before opening quotation mark.") % value
+                if i and value[i - 1] != ",":
+                    msg = (
+                        _(
+                            "Invalid filter value %s. There is no comma "
+                            "before opening quotation mark."
+                        )
+                        % value
+                    )
                     raise exception.InvalidParameterValue(message=msg)
             else:
                 if i + 1 != len(value) and value[i + 1] != ",":
-                    msg = _("Invalid filter value %s. There is no comma "
-                            "after closing quotation mark.") % value
+                    msg = (
+                        _(
+                            "Invalid filter value %s. There is no comma "
+                            "after closing quotation mark."
+                        )
+                        % value
+                    )
                     raise exception.InvalidParameterValue(message=msg)
             open_quotes = not open_quotes
     if not open_quotes:
@@ -694,7 +743,8 @@ def split_filter_value_for_quotes(value):
     Split values by commas and quotes for 'in' operator, according api-wg.
     """
     validate_quotes(value)
-    tmp = re.compile(r'''
+    tmp = re.compile(
+        r"""
         "(                 # if found a double-quote
            [^\"\\]*        # take characters either non-quotes or backslashes
            (?:\\.          # take backslashes and character after it
@@ -704,7 +754,9 @@ def split_filter_value_for_quotes(value):
         | ([^,]+),?        # if not found double-quote take any non-comma
                            # characters with comma maybe
         | ,                # if we have only comma take empty string
-        ''', re.VERBOSE)
+        """,
+        re.VERBOSE,
+    )
     return [val[0] or val[1] for val in re.findall(tmp, value)]
 
 
@@ -721,17 +773,17 @@ def evaluate_filter_op(value, operator, threshold):
     :returns: boolean result of applied comparison
 
     """
-    if operator == 'gt':
+    if operator == "gt":
         return value > threshold
-    elif operator == 'gte':
+    elif operator == "gte":
         return value >= threshold
-    elif operator == 'lt':
+    elif operator == "lt":
         return value < threshold
-    elif operator == 'lte':
+    elif operator == "lte":
         return value <= threshold
-    elif operator == 'neq':
+    elif operator == "neq":
         return value != threshold
-    elif operator == 'eq':
+    elif operator == "eq":
         return value == threshold
 
     msg = _("Unable to filter on a unknown operator.")
@@ -745,7 +797,7 @@ def _get_available_stores():
     for store in available_stores:
         # NOTE (abhishekk): http store is readonly and should be
         # excluded from the list.
-        if available_stores[store] == 'http':
+        if available_stores[store] == "http":
             continue
         if store not in wsgi.RESERVED_STORES:
             stores.append(store)
@@ -762,22 +814,27 @@ def get_stores_from_request(req, body):
     :raises glance_store.UnknownScheme:  if a store is not valid
     :return: a list of stores
     """
-    if body.get('all_stores', False):
-        if 'stores' in body or 'x-image-meta-store' in req.headers:
-            msg = _("All_stores parameter can't be used with "
-                    "x-image-meta-store header or stores parameter")
+    if body.get("all_stores", False):
+        if "stores" in body or "x-image-meta-store" in req.headers:
+            msg = _(
+                "All_stores parameter can't be used with "
+                "x-image-meta-store header or stores parameter"
+            )
             raise exc.HTTPBadRequest(explanation=msg)
         stores = _get_available_stores()
     else:
         try:
-            stores = body['stores']
+            stores = body["stores"]
         except KeyError:
-            stores = [req.headers.get('x-image-meta-store',
-                                      CONF.glance_store.default_backend)]
+            stores = [
+                req.headers.get("x-image-meta-store", CONF.glance_store.default_backend)
+            ]
         else:
-            if 'x-image-meta-store' in req.headers:
-                msg = _("Stores parameter and x-image-meta-store header can't "
-                        "be both specified")
+            if "x-image-meta-store" in req.headers:
+                msg = _(
+                    "Stores parameter and x-image-meta-store header can't "
+                    "be both specified"
+                )
                 raise exc.HTTPBadRequest(explanation=msg)
     # Validate each store
     for store in stores:
@@ -790,20 +847,22 @@ def sort_image_locations(locations):
         return locations
 
     def get_store_weight(location):
-        store_id = location['metadata'].get('store')
+        store_id = location["metadata"].get("store")
         if not store_id:
             return 0
         try:
             store = glance_store.get_store_from_store_identifier(store_id)
         except glance_store.exceptions.UnknownScheme:
-            msg = (_LW("Unable to find store '%s', returning "
-                       "default weight '0'") % store_id)
+            msg = (
+                _LW("Unable to find store '%s', returning " "default weight '0'")
+                % store_id
+            )
             LOG.warning(msg)
             return 0
         return store.weight if store is not None else 0
 
     sorted_locations = sorted(locations, key=get_store_weight, reverse=True)
-    LOG.debug(('Sorted locations: %s'), sorted_locations)
+    LOG.debug(("Sorted locations: %s"), sorted_locations)
     return sorted_locations
 
 
@@ -813,6 +872,6 @@ def is_http_store_configured(url):
 
     enabled_backends = CONF.enabled_backends
     if enabled_backends:
-        return 'http' in enabled_backends.values()
+        return "http" in enabled_backends.values()
     else:
-        return 'http' in CONF.glance_store.stores
+        return "http" in CONF.glance_store.stores

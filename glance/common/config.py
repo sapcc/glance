@@ -54,7 +54,7 @@ glance_service_user_group = cfg.OptGroup(
 
 glance_service_user_opts = [
     cfg.StrOpt("username", help="Service user name"),
-    cfg.StrOpt('password', secret=True, help='Service user password'),
+    cfg.StrOpt("password", secret=True, help="Service user password"),
     cfg.StrOpt("user_domain_name", default="Default", help="User domain name"),
     cfg.StrOpt("project_name", help="Service user project name"),
     cfg.StrOpt("project_domain_name", default="Default", help="Project domain name"),
@@ -65,9 +65,11 @@ CONF.register_group(glance_service_user_group)
 CONF.register_opts(glance_service_user_opts, group="glance_service_user")
 
 paste_deploy_opts = [
-    cfg.StrOpt('flavor',
-               sample_default='keystone',
-               help=_("""
+    cfg.StrOpt(
+        "flavor",
+        sample_default="keystone",
+        help=_(
+            """
 Deployment flavor to use in the server application pipeline.
 
 Provide a string value representing the appropriate deployment
@@ -85,10 +87,14 @@ Possible values:
 Related Options:
     * config_file
 
-""")),
-    cfg.StrOpt('config_file',
-               sample_default='glance-api-paste.ini',
-               help=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "config_file",
+        sample_default="glance-api-paste.ini",
+        help=_(
+            """
 Name of the paste configuration file.
 
 Provide a string value representing the name of the paste
@@ -117,46 +123,67 @@ Possible values:
 Related Options:
     * flavor
 
-""")),
+"""
+        ),
+    ),
 ]
 image_format_opts = [
-    cfg.ListOpt('container_formats',
-                default=['ami', 'ari', 'aki', 'bare', 'ovf', 'ova', 'docker',
-                         'compressed'],
-                help=_("Supported values for the 'container_format' "
-                       "image attribute"),
-                deprecated_opts=[cfg.DeprecatedOpt('container_formats',
-                                                   group='DEFAULT')]),
-    cfg.ListOpt('disk_formats',
-                default=['ami', 'ari', 'aki', 'vhd', 'vhdx', 'vmdk', 'raw',
-                         'qcow2', 'vdi', 'iso', 'ploop'],
-                help=_("Supported values for the 'disk_format' "
-                       "image attribute"),
-                deprecated_opts=[cfg.DeprecatedOpt('disk_formats',
-                                                   group='DEFAULT')]),
-    cfg.ListOpt('vmdk_allowed_types',
-                default=['streamOptimized', 'monolithicSparse'],
-                help=_("A list of strings describing allowed VMDK "
-                       "'create-type' subformats that will be allowed. "
-                       "This is recommended to only include "
-                       "single-file-with-sparse-header variants to avoid "
-                       "potential host file exposure due to processing named "
-                       "extents. If this list is empty, then no VDMK image "
-                       "types allowed. Note that this is currently only "
-                       "checked during image conversion (if enabled), and "
-                       "limits the types of VMDK images we will convert "
-                       "from.")),
+    cfg.ListOpt(
+        "container_formats",
+        default=["ami", "ari", "aki", "bare", "ovf", "ova", "docker", "compressed"],
+        help=_("Supported values for the 'container_format' " "image attribute"),
+        deprecated_opts=[cfg.DeprecatedOpt("container_formats", group="DEFAULT")],
+    ),
+    cfg.ListOpt(
+        "disk_formats",
+        default=[
+            "ami",
+            "ari",
+            "aki",
+            "vhd",
+            "vhdx",
+            "vmdk",
+            "raw",
+            "qcow2",
+            "vdi",
+            "iso",
+            "ploop",
+        ],
+        help=_("Supported values for the 'disk_format' " "image attribute"),
+        deprecated_opts=[cfg.DeprecatedOpt("disk_formats", group="DEFAULT")],
+    ),
+    cfg.ListOpt(
+        "vmdk_allowed_types",
+        default=["streamOptimized", "monolithicSparse"],
+        help=_(
+            "A list of strings describing allowed VMDK "
+            "'create-type' subformats that will be allowed. "
+            "This is recommended to only include "
+            "single-file-with-sparse-header variants to avoid "
+            "potential host file exposure due to processing named "
+            "extents. If this list is empty, then no VDMK image "
+            "types allowed. Note that this is currently only "
+            "checked during image conversion (if enabled), and "
+            "limits the types of VMDK images we will convert "
+            "from."
+        ),
+    ),
 ]
 task_opts = [
-    cfg.IntOpt('task_time_to_live',
-               default=48,
-               help=_("Time in hours for which a task lives after, either "
-                      "succeeding or failing"),
-               deprecated_opts=[cfg.DeprecatedOpt('task_time_to_live',
-                                                  group='DEFAULT')]),
-    cfg.StrOpt('task_executor',
-               default='taskflow',
-               help=_("""
+    cfg.IntOpt(
+        "task_time_to_live",
+        default=48,
+        help=_(
+            "Time in hours for which a task lives after, either "
+            "succeeding or failing"
+        ),
+        deprecated_opts=[cfg.DeprecatedOpt("task_time_to_live", group="DEFAULT")],
+    ),
+    cfg.StrOpt(
+        "task_executor",
+        default="taskflow",
+        help=_(
+            """
 Task executor to be used to run task scripts.
 
 Provide a string value representing the executor to use for task
@@ -173,10 +200,14 @@ Possible values:
 Related Options:
     * None
 
-""")),
-    cfg.StrOpt('work_dir',
-               sample_default='/work_dir',
-               help=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "work_dir",
+        sample_default="/work_dir",
+        help=_(
+            """
 Absolute path to the work directory to use for asynchronous
 task operations.
 
@@ -204,13 +235,17 @@ Possible values:
 Related Options:
     * None
 
-""")),
+"""
+        ),
+    ),
 ]
 
 common_opts = [
-    cfg.StrOpt('hashing_algorithm',
-               default='sha512',
-               help=_("""
+    cfg.StrOpt(
+        "hashing_algorithm",
+        default="sha512",
+        help=_(
+            """
 Secure hashing algorithm used for computing the 'os_hash_value' property.
 
 This option configures the Glance "multihash", which consists of two
@@ -241,9 +276,14 @@ Possible values:
 Related options:
     * None
 
-""")),
-    cfg.IntOpt('image_member_quota', default=128,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "image_member_quota",
+        default=128,
+        help=_(
+            """
 Maximum number of image members per image.
 
 This limits the maximum of users an image can be shared with. Any negative
@@ -252,17 +292,27 @@ value is interpreted as unlimited.
 Related options:
     * None
 
-""")),
-    cfg.IntOpt('image_property_quota', default=128,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "image_property_quota",
+        default=128,
+        help=_(
+            """
 Maximum number of properties allowed on an image.
 
 This enforces an upper limit on the number of additional properties an image
 can have. Any negative value is interpreted as unlimited.
 
-""")),
-    cfg.IntOpt('image_tag_quota', default=128,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "image_tag_quota",
+        default=128,
+        help=_(
+            """
 Maximum number of tags allowed on an image.
 
 Any negative value is interpreted as unlimited.
@@ -270,9 +320,14 @@ Any negative value is interpreted as unlimited.
 Related options:
     * None
 
-""")),
-    cfg.IntOpt('image_location_quota', default=10,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "image_location_quota",
+        default=10,
+        help=_(
+            """
 Maximum number of locations allowed on an image.
 
 Any negative value is interpreted as unlimited.
@@ -280,9 +335,15 @@ Any negative value is interpreted as unlimited.
 Related options:
     * None
 
-""")),
-    cfg.IntOpt('limit_param_default', default=25, min=1,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "limit_param_default",
+        default=25,
+        min=1,
+        help=_(
+            """
 The default number of results to return for a request.
 
 Responses to certain API requests, like list images, may return
@@ -305,9 +366,15 @@ Possible values:
 Related options:
     * api_limit_max
 
-""")),
-    cfg.IntOpt('api_limit_max', default=1000, min=1,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "api_limit_max",
+        default=1000,
+        min=1,
+        help=_(
+            """
 Maximum number of results that could be returned by a request.
 
 As described in the help text of ``limit_param_default``, some
@@ -328,9 +395,14 @@ Possible values:
 Related options:
     * limit_param_default
 
-""")),
-    cfg.BoolOpt('show_image_direct_url', default=False,
-                help=_("""
+"""
+        ),
+    ),
+    cfg.BoolOpt(
+        "show_image_direct_url",
+        default=False,
+        help=_(
+            """
 Show direct image location when returning an image.
 
 This configuration option indicates whether to show the direct image
@@ -359,31 +431,38 @@ Related options:
     * show_multiple_locations
     * weight
 
-""")),
+"""
+        ),
+    ),
     # NOTE(flaper87): The policy.yaml file should be updated and the location
     # related rules set to admin only once this option is finally removed.
     # NOTE(rosmaita): Unfortunately, this option is used to gate some code
     # paths; if the location related policies are set admin-only, then no
     # normal users can save or retrieve image data.
-    cfg.BoolOpt('show_multiple_locations', default=False,
-                deprecated_for_removal=True,
-                deprecated_reason=_('Use of this option, deprecated since '
-                                    'Newton, is a security risk and will be '
-                                    'removed once we figure out a way to '
-                                    'satisfy those use cases that currently '
-                                    'require it.  An earlier announcement '
-                                    'that the same functionality can be '
-                                    'achieved with greater granularity by '
-                                    'using policies is incorrect.  You cannot '
-                                    'work around this option via policy '
-                                    'configuration at the present time, '
-                                    'though that is the direction we believe '
-                                    'the fix will take.  Please keep an eye '
-                                    'on the Glance release notes to stay up '
-                                    'to date on progress in addressing this '
-                                    'issue.'),
-                deprecated_since='Newton',
-                help=_("""
+    cfg.BoolOpt(
+        "show_multiple_locations",
+        default=False,
+        deprecated_for_removal=True,
+        deprecated_reason=_(
+            "Use of this option, deprecated since "
+            "Newton, is a security risk and will be "
+            "removed once we figure out a way to "
+            "satisfy those use cases that currently "
+            "require it.  An earlier announcement "
+            "that the same functionality can be "
+            "achieved with greater granularity by "
+            "using policies is incorrect.  You cannot "
+            "work around this option via policy "
+            "configuration at the present time, "
+            "though that is the direction we believe "
+            "the fix will take.  Please keep an eye "
+            "on the Glance release notes to stay up "
+            "to date on progress in addressing this "
+            "issue."
+        ),
+        deprecated_since="Newton",
+        help=_(
+            """
 Show all image locations when returning an image.
 
 This configuration option indicates whether to show all the image
@@ -412,9 +491,14 @@ Related options:
     * show_image_direct_url
     * weight
 
-""")),
-    cfg.BoolOpt('do_secure_hash', default=True,
-                help=_("""
+"""
+        ),
+    ),
+    cfg.BoolOpt(
+        "do_secure_hash",
+        default=True,
+        help=_(
+            """
 Calculate hash and checksum for the image.
 
 This configuration option indicates that /v2/images/{image_id}/locations
@@ -424,14 +508,25 @@ If False it will silently ignore the hash and checksum calculation.
 Possible values:
     * True
     * False
-""")),
-    cfg.IntOpt('http_retries', default=3,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "http_retries",
+        default=3,
+        help=_(
+            """
 The number of times to retry when any operation fails.
-""")),
-    cfg.IntOpt('image_size_cap', default=1099511627776, min=1,
-               max=9223372036854775808,
-               help=_("""
+"""
+        ),
+    ),
+    cfg.IntOpt(
+        "image_size_cap",
+        default=1099511627776,
+        min=1,
+        max=9223372036854775808,
+        help=_(
+            """
 Maximum size of image a user can upload in bytes.
 
 An image upload greater than the size mentioned here would result
@@ -452,9 +547,14 @@ NOTES:
 Possible values:
     * Any positive number less than or equal to 9223372036854775808
 
-""")),
-    cfg.StrOpt('user_storage_quota', default='0',
-               help=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "user_storage_quota",
+        default="0",
+        help=_(
+            """
 Maximum amount of image storage per tenant.
 
 This enforces an upper limit on the cumulative storage consumed by all images
@@ -477,9 +577,14 @@ Possible values:
 Related options:
     * use_keystone_limits
 
-""")),
-    cfg.BoolOpt('use_keystone_limits', default=False,
-                help=_("""
+"""
+        ),
+    ),
+    cfg.BoolOpt(
+        "use_keystone_limits",
+        default=False,
+        help=_(
+            """
 Utilize per-tenant resource limits registered in Keystone.
 
 Enabling this feature will cause Glance to retrieve limits set in keystone
@@ -490,10 +595,14 @@ considered to be zero, and thus reject all new resource requests.
 These per-tenant resource limits are independent from the static
 global ones configured in this config file. If this is enabled, the
 relevant static global limits will be ignored.
-""")),
-    cfg.HostAddressOpt('pydev_worker_debug_host',
-                       sample_default='localhost',
-                       help=_("""
+"""
+        ),
+    ),
+    cfg.HostAddressOpt(
+        "pydev_worker_debug_host",
+        sample_default="localhost",
+        help=_(
+            """
 Host address of the pydev server.
 
 Provide a string value representing the hostname or IP of the
@@ -508,10 +617,14 @@ Possible values:
 Related options:
     * None
 
-""")),
-    cfg.PortOpt('pydev_worker_debug_port',
-                default=5678,
-                help=_("""
+"""
+        ),
+    ),
+    cfg.PortOpt(
+        "pydev_worker_debug_port",
+        default=5678,
+        help=_(
+            """
 Port number that the pydev server will listen on.
 
 Provide a port number to bind the pydev server to. The pydev
@@ -524,20 +637,26 @@ Possible values:
 Related options:
     * None
 
-""")),
-    cfg.StrOpt('metadata_encryption_key',
-               deprecated_for_removal=True,
-               deprecated_since="Dalmatian",
-               deprecated_reason=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "metadata_encryption_key",
+        deprecated_for_removal=True,
+        deprecated_since="Dalmatian",
+        deprecated_reason=_(
+            """
 This option doesnt serves the purpose of encryption of location metadata,
 whereas it encrypts location url only for specific APIs. Also if enabled
 this during an upgrade may disrupt existing deployments, as it does not
 support/provide db upgrade script to encrypt existing location URLs.
 Moreover, its functionality for encrypting location URLs is inconsistent
 which is resulting in download failures.
-"""),
-               secret=True,
-               help=_("""
+"""
+        ),
+        secret=True,
+        help=_(
+            """
 AES key for encrypting store location metadata.
 
 Provide a string value representing the AES cipher to use for
@@ -552,15 +671,21 @@ Possible values:
 Related options:
     * None
 
-""")),
-    cfg.StrOpt('digest_algorithm',
-               default='sha256',
-               deprecated_for_removal=True,
-               deprecated_since="Dalmatian",
-               deprecated_reason=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "digest_algorithm",
+        default="sha256",
+        deprecated_for_removal=True,
+        deprecated_since="Dalmatian",
+        deprecated_reason=_(
+            """
 This option has had no effect since the removal of native SSL support.
-"""),
-               help=_("""
+"""
+        ),
+        help=_(
+            """
 Digest algorithm to use for digital signature.
 
 Provide a string value representing the digest algorithm to
@@ -583,10 +708,14 @@ Possible values:
 Relation options:
     * None
 
-""")),
-    cfg.StrOpt('node_staging_uri',
-               default='file:///tmp/staging/',
-               help=_("""
+"""
+        ),
+    ),
+    cfg.StrOpt(
+        "node_staging_uri",
+        default="file:///tmp/staging/",
+        help=_(
+            """
 The URL provides location where the temporary data will be stored
 
 This option is for Glance internal use only. Glance will save the
@@ -609,23 +738,30 @@ Possible values:
 Related options:
     * [task]/work_dir
 
-""")),
-    cfg.ListOpt('enabled_import_methods',
-                item_type=cfg.types.String(quotes=True),
-                bounds=True,
-                default=['glance-direct', 'web-download',
-                         'copy-image'],
-                help=_("""
+"""
+        ),
+    ),
+    cfg.ListOpt(
+        "enabled_import_methods",
+        item_type=cfg.types.String(quotes=True),
+        bounds=True,
+        default=["glance-direct", "web-download", "copy-image"],
+        help=_(
+            """
     List of enabled Image Import Methods
 
     'glance-direct', 'copy-image' and 'web-download' are enabled by default.
     'glance-download' is available, but requires federated deployments.
 
     Related options:
-        * [DEFAULT]/node_staging_uri""")),
-    cfg.StrOpt('worker_self_reference_url',
-               default=None,
-               help=_("""
+        * [DEFAULT]/node_staging_uri"""
+        ),
+    ),
+    cfg.StrOpt(
+        "worker_self_reference_url",
+        default=None,
+        help=_(
+            """
 The URL to this worker.
 
 If this is set, other glance workers will know how to contact this one
@@ -643,56 +779,67 @@ Possible values:
 Related options:
     * public_endpoint
 
-""")),
+"""
+        ),
+    ),
 ]
 
 wsgi_opts = [
-    cfg.IntOpt('task_pool_threads',
-               default=16,
-               min=1,
-               help=_("""
+    cfg.IntOpt(
+        "task_pool_threads",
+        default=16,
+        min=1,
+        help=_(
+            """
 The number of threads (per worker process) in the pool for processing
 asynchronous tasks. This controls how many asynchronous tasks (i.e. for
 image interoperable import) each worker can run at a time. If this is
 too large, you *may* have increased memory footprint per worker and/or you
 may overwhelm other system resources such as disk or outbound network
 bandwidth. If this is too small, image import requests will have to wait
-until a thread becomes available to begin processing.""")),
-    cfg.StrOpt('python_interpreter',
-               default=None,
-               help=_("""
+until a thread becomes available to begin processing."""
+        ),
+    ),
+    cfg.StrOpt(
+        "python_interpreter",
+        default=None,
+        help=_(
+            """
 Path to the python interpreter to use when spawning external
 processes. If left unspecified, this will be sys.executable, which should
 be the same interpreter running Glance itself. However, in some situations
 (for example, uwsgi) sys.executable may not actually point to a python
-interpreter and an alternative value must be set.""")),
+interpreter and an alternative value must be set."""
+        ),
+    ),
 ]
 
 
 CONF = cfg.CONF
-CONF.register_opts(paste_deploy_opts, group='paste_deploy')
-CONF.register_opts(image_format_opts, group='image_format')
-CONF.register_opts(task_opts, group='task')
+CONF.register_opts(paste_deploy_opts, group="paste_deploy")
+CONF.register_opts(image_format_opts, group="image_format")
+CONF.register_opts(task_opts, group="task")
 CONF.register_opts(common_opts)
-CONF.register_opts(wsgi_opts, group='wsgi')
+CONF.register_opts(wsgi_opts, group="wsgi")
 policy.Enforcer(CONF)
 
 
 def parse_args(args=None, usage=None, default_config_files=None):
-    CONF(args=args,
-         project='glance',
-         version=version.cached_version_string(),
-         usage=usage,
-         default_config_files=default_config_files)
+    CONF(
+        args=args,
+        project="glance",
+        version=version.cached_version_string(),
+        usage=usage,
+        default_config_files=default_config_files,
+    )
 
 
 def parse_cache_args(args=None):
-    config_files = cfg.find_config_files(project='glance', prog='glance-api')
+    config_files = cfg.find_config_files(project="glance", prog="glance-api")
     # NOTE(abhishekk): Reading glance-api file first and glance-cache file
     # later so that if glance-cache file has different values set for some
     # cache related options then they should take precedence.
-    config_files.extend(cfg.find_config_files(project='glance',
-                                              prog='glance-cache'))
+    config_files.extend(cfg.find_config_files(project="glance", prog="glance-cache"))
     parse_args(args=args, default_config_files=config_files)
 
 
@@ -706,12 +853,12 @@ def _get_deployment_flavor(flavor=None):
     """
     if not flavor:
         flavor = CONF.paste_deploy.flavor
-    return '' if not flavor else ('-' + flavor)
+    return "" if not flavor else ("-" + flavor)
 
 
 def _get_paste_config_path():
-    paste_suffix = '-paste.ini'
-    conf_suffix = '.conf'
+    paste_suffix = "-paste.ini"
+    conf_suffix = ".conf"
     if CONF.config_file:
         # Assume paste config is in a paste.ini file corresponding
         # to the last config file
@@ -758,8 +905,10 @@ def load_paste_app(app_name, flavor=None, conf_file=None):
 
     try:
         logger = logging.getLogger(__name__)
-        logger.debug("Loading %(app_name)s from %(conf_file)s",
-                     {'conf_file': conf_file, 'app_name': app_name})
+        logger.debug(
+            "Loading %(app_name)s from %(conf_file)s",
+            {"conf_file": conf_file, "app_name": app_name},
+        )
 
         app = deploy.loadapp("config:%s" % conf_file, name=app_name)
 
@@ -769,11 +918,11 @@ def load_paste_app(app_name, flavor=None, conf_file=None):
 
         return app
     except (LookupError, ImportError) as e:
-        msg = (_("Unable to load %(app_name)s from "
-                 "configuration file %(conf_file)s."
-                 "\nGot: %(e)r") % {'app_name': app_name,
-                                    'conf_file': conf_file,
-                                    'e': e})
+        msg = _(
+            "Unable to load %(app_name)s from "
+            "configuration file %(conf_file)s."
+            "\nGot: %(e)r"
+        ) % {"app_name": app_name, "conf_file": conf_file, "e": e}
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -785,32 +934,32 @@ def set_config_defaults():
     # TODO(gmann): Remove setting the default value of config policy_file
     # once oslo_policy change the default value to 'policy.yaml'.
     # https://github.com/openstack/oslo.policy/blob/a626ad12fe5a3abd49d70e3e5b95589d279ab578/oslo_policy/opts.py#L49
-    DEFAULT_POLICY_FILE = 'policy.yaml'
+    DEFAULT_POLICY_FILE = "policy.yaml"
     opts.set_defaults(cfg.CONF, DEFAULT_POLICY_FILE)
 
 
 def set_cors_middleware_defaults():
     """Update default configuration options for oslo.middleware."""
     cors.set_defaults(
-        allow_headers=['Content-MD5',
-                       'X-Image-Meta-Checksum',
-                       'X-Storage-Token',
-                       'Accept-Encoding',
-                       'X-Auth-Token',
-                       'X-Identity-Status',
-                       'X-Roles',
-                       'X-Service-Catalog',
-                       'X-User-Id',
-                       'X-Tenant-Id',
-                       'X-OpenStack-Request-ID'],
-        expose_headers=['X-Image-Meta-Checksum',
-                        'X-Auth-Token',
-                        'X-Subject-Token',
-                        'X-Service-Token',
-                        'X-OpenStack-Request-ID'],
-        allow_methods=['GET',
-                       'PUT',
-                       'POST',
-                       'DELETE',
-                       'PATCH']
+        allow_headers=[
+            "Content-MD5",
+            "X-Image-Meta-Checksum",
+            "X-Storage-Token",
+            "Accept-Encoding",
+            "X-Auth-Token",
+            "X-Identity-Status",
+            "X-Roles",
+            "X-Service-Catalog",
+            "X-User-Id",
+            "X-Tenant-Id",
+            "X-OpenStack-Request-ID",
+        ],
+        expose_headers=[
+            "X-Image-Meta-Checksum",
+            "X-Auth-Token",
+            "X-Subject-Token",
+            "X-Service-Token",
+            "X-OpenStack-Request-ID",
+        ],
+        allow_methods=["GET", "PUT", "POST", "DELETE", "PATCH"],
     )
