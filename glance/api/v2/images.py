@@ -123,6 +123,18 @@ class ImagesController(object):
                         extra_properties['domain_tags'] = str(tags_list)
                     LOG.debug("Attached project tags to image during create (no ID): %s", tags_list)
 
+            # ✅ CUSTOM: Add iaas_restricted tag if in iaas domain
+            domain_name = (
+                getattr(req.context, 'domain_name', None) or
+                getattr(req.context, 'user_domain_name', None)
+            )
+            if domain_name and domain_name.startswith('iaas'):
+                LOG.debug("[IAAS_CREATE] Detected iaas domain '%s'. Ensuring 'iaas_restricted' tag.", domain_name)
+                tags = tags or []
+                if 'iaas_restricted' not in tags:
+                    tags.append('iaas_restricted')
+                    LOG.debug("[IAAS_CREATE] Appended 'iaas_restricted' to image tags.")
+
             image = image_factory.new_image(extra_properties=extra_properties,
                                             tags=tags, **image)
 
@@ -148,6 +160,7 @@ class ImagesController(object):
             raise webob.exc.HTTPBadRequest(explanation=e)
 
         return image
+
 
     def _bust_import_lock(self, admin_image_repo, admin_task_repo,
                           image, task, task_id):
