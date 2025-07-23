@@ -93,12 +93,12 @@ class ImagesController(object):
     def create(self, req, image, extra_properties, tags):
         image_factory = self.gateway.get_image_factory(req.context)
         image_repo = self.gateway.get_repo(req.context)
+
         try:
             if 'owner' not in image:
                 image['owner'] = req.context.project_id
 
             api_policy.ImageAPIPolicy(req.context, image, self.policy).add_image()
-
             ks_quota.enforce_image_count_total(req.context, req.context.owner)
 
             # ✅ Attach domain info if enabled
@@ -114,7 +114,6 @@ class ImagesController(object):
                         extra_properties['domain_tags'] = str(tags_list)
                     LOG.debug("Attached domain info to image during create (no ID): %s", domain_info)
             else:
-                # ✅ Fallback to context domain_tags if present
                 tags_list = getattr(req.context, 'domain_tags', None)
                 if tags_list:
                     if isinstance(tags_list, list):
@@ -123,21 +122,17 @@ class ImagesController(object):
                         extra_properties['domain_tags'] = str(tags_list)
                     LOG.debug("Attached project tags to image during create (no ID): %s", tags_list)
 
-            # ✅ CUSTOM: Add iaas_restricted tag if in iaas domain
-            domain_name = (
-                getattr(req.context, 'domain_name', None) or
-                getattr(req.context, 'user_domain_name', None)
-            )
-            if domain_name and domain_name.startswith('iaas'):
-                LOG.debug("[IAAS_CREATE] Detected iaas domain '%s'. Ensuring 'iaas_restricted' tag.", domain_name)
+            # ✅ Add domain-project scoped tag for iaas domains
+            user_domain = getattr(req.context, 'user_domain_name', None)
+            project_id = getattr(req.context, 'project_id', None)
+            if user_domain and user_domain.startswith('iaas') and project_id:
+                scoped_tag = f"{user_domain}-{project_id}"
                 tags = tags or []
-                if 'iaas_restricted' not in tags:
-                    tags.append('iaas_restricted')
-                    LOG.debug("[IAAS_CREATE] Appended 'iaas_restricted' to image tags.")
+                if scoped_tag not in tags:
+                    tags.append(scoped_tag)
+                    LOG.debug("[IAAS_CREATE] Appended scoped tag '%s' to image", scoped_tag)
 
-            image = image_factory.new_image(extra_properties=extra_properties,
-                                            tags=tags, **image)
-
+            image = image_factory.new_image(extra_properties=extra_properties, tags=tags, **image)
             image_repo.add(image)
 
         except (exception.DuplicateLocation, exception.Invalid) as e:
@@ -601,21 +596,24 @@ class ImagesController(object):
             )
             LOG.debug("[IAAS_FILTER] Effective domain_name: %s", domain_name)
 
-            # CUSTOM: Enforce iaas_restricted tag for iaas domains
+            # CUSTOM: Enforce domain-scoped tag for iaas domains
             if domain_name and domain_name.startswith('iaas'):
-                LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Enforcing iaas_restricted tag filtering...", domain_name)
+                project_id = getattr(req.context, 'project_id', None)
+                if project_id:
+                    scoped_tag = f"{domain_name}-{project_id}"
+                    LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Enforcing tag '%s' filtering...", domain_name, scoped_tag)
 
-                filtered_images = []
-                for img in images:
-                    image_tags = getattr(img, 'tags', [])
-                    if 'iaas_restricted' in image_tags:
-                        LOG.debug("[IAAS_FILTER] ALLOWED: image '%s' contains 'iaas_restricted' tag", img.image_id)
-                        filtered_images.append(img)
-                    else:
-                        LOG.debug("[IAAS_FILTER] SKIPPED: image '%s' does NOT contain 'iaas_restricted' tag", img.image_id)
+                    filtered_images = []
+                    for img in images:
+                        image_tags = getattr(img, 'tags', [])
+                        if scoped_tag in image_tags:
+                            LOG.debug("[IAAS_FILTER] ALLOWED: image '%s' contains tag '%s'", img.image_id, scoped_tag)
+                            filtered_images.append(img)
+                        else:
+                            LOG.debug("[IAAS_FILTER] SKIPPED: image '%s' does NOT contain tag '%s'", img.image_id, scoped_tag)
 
-                images = filtered_images
-                LOG.debug("[IAAS_FILTER] Final image count after filtering: %d", len(images))
+                    images = filtered_images
+                    LOG.debug("[IAAS_FILTER] Final image count after filtering: %d", len(images))
 
             # NOTE(danms): we need to include the next marker if the DB
             # paginated. Since we filter images based on policy, we can
@@ -636,6 +634,7 @@ class ImagesController(object):
 
         result['images'] = images
         return result
+
 
     def show(self, req, image_id):
         image_repo = self.gateway.get_repo(req.context)
