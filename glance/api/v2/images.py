@@ -654,10 +654,18 @@ class ImagesController(object):
                         image.extra_properties['domain_tags'] = str(tags)
                     LOG.debug("Attached domain info to image %s: %s", image_id, domain_info)
 
-            # ✅ NEW: Check iaas_restricted tag for iaas-* domains
-            if str(domain_info.get('domain_name', '')).startswith('iaas'):
-                if 'iaas_restricted' not in image.tags:
-                    LOG.debug("Blocking image %s (no iaas_restricted tag for iaas domain)", image_id)
+            # ✅ NEW: Check <domain_name>-<project_id> tag for iaas-* domains
+            domain_name = (
+                domain_info.get('domain_name')
+                if domain_info and 'domain_name' in domain_info
+                else getattr(req.context, 'domain_name', None) or getattr(req.context, 'user_domain_name', None)
+            )
+            project_id = getattr(req.context, 'project_id', None)
+
+            if domain_name and domain_name.startswith('iaas') and project_id:
+                scoped_tag = f"{domain_name}-{project_id}"
+                if scoped_tag not in image.tags:
+                    LOG.debug("Blocking image %s (missing tag '%s' for iaas domain)", image_id, scoped_tag)
                     raise webob.exc.HTTPNotFound(explanation="Image not found")
 
             return image
