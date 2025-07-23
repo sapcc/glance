@@ -113,19 +113,22 @@ def fetch_domain_info(project_id, auth_token=None):
             LOG.warning("Project %s has no domain_id", project_id)
             return {"domain_id": "", "domain_name": "", "tags": []}
 
-        LOG.debug("Extracted domain_id=%s from project_id=%s", domain_id, project_id)
+        LOG.debug("Extracted domain_id=%s from project_id=%s",
+                  domain_id, project_id)
 
         # Step 2: Get domain name
         domain = keystone.domains.get(domain_id)
         domain_name = getattr(domain, "name", "")
-        LOG.debug("Extracted domain_name=%s from domain_id=%s", domain_name, domain_id)
+        LOG.debug("Extracted domain_name=%s from domain_id=%s",
+                  domain_name, domain_id)
 
         # Step 3: List tags on domain_id (as project)
         LOG.debug("Calling keystone.projects.list_tags(domain_id=%s)", domain_id)
         tags_response = keystone.projects.list_tags(domain_id)
 
         LOG.debug(
-            "Raw tags_response type=%s value=%s", type(tags_response), tags_response
+            "Raw tags_response type=%s value=%s", type(
+                tags_response), tags_response
         )
 
         tags = (
@@ -214,7 +217,8 @@ def cooperative_read(fd):
 
 MAX_COOP_READER_BUFFER_SIZE = 134217728  # 128M seems like a sane buffer limit
 
-CONF.import_group("import_filtering_opts", "glance.async_.flows._internal_plugins")
+CONF.import_group("import_filtering_opts",
+                  "glance.async_.flows._internal_plugins")
 
 
 def validate_import_uri(uri):
@@ -307,7 +311,7 @@ class CooperativeReader(object):
             if len(self.buffer) - self.position > 0:
                 # if no length specified but some data exists in buffer,
                 # return that data and clear the buffer
-                result = self.buffer[self.position :]
+                result = self.buffer[self.position:]
                 self.buffer = b""
                 self.position = 0
                 return bytes(result)
@@ -329,7 +333,7 @@ class CooperativeReader(object):
             while len(result) < length:
                 if self.position < len(self.buffer):
                     to_read = length - len(result)
-                    chunk = self.buffer[self.position : self.position + to_read]
+                    chunk = self.buffer[self.position: self.position + to_read]
                     result.extend(chunk)
 
                     # This check is here to prevent potential OOM issues if
@@ -405,7 +409,8 @@ def image_meta_to_http_headers(image_meta):
             if k == "properties":
                 for pk, pv in v.items():
                     if pv is not None:
-                        headers["x-image-meta-property-%s" % pk.lower()] = str(pv)
+                        headers["x-image-meta-property-%s" %
+                            pk.lower()] = str(pv)
             else:
                 headers["x-image-meta-%s" % k.lower()] = str(v)
     return headers
@@ -430,10 +435,10 @@ def get_image_meta_from_headers(response):
     for key, value in headers:
         key = str(key.lower())
         if key.startswith("x-image-meta-property-"):
-            field_name = key[len("x-image-meta-property-") :].replace("-", "_")
+            field_name = key[len("x-image-meta-property-"):].replace("-", "_")
             properties[field_name] = value or None
         elif key.startswith("x-image-meta-"):
-            field_name = key[len("x-image-meta-") :].replace("-", "_")
+            field_name = key[len("x-image-meta-"):].replace("-", "_")
             if "x-image-meta-" + field_name not in IMAGE_META_HEADERS:
                 msg = _("Bad header: %(header_name)s") % {"header_name": key}
                 raise exc.HTTPBadRequest(msg, content_type="text/plain")
@@ -507,7 +512,8 @@ def mutating(func):
         if req.context.read_only:
             msg = "Read-only access"
             LOG.debug(msg)
-            raise exc.HTTPForbidden(msg, request=req, content_type="text/plain")
+            raise exc.HTTPForbidden(
+                msg, request=req, content_type="text/plain")
         return func(self, req, *args, **kwargs)
 
     return wrapped
@@ -527,7 +533,8 @@ def setup_remote_pydev_debug(host, port):
         except ImportError:
             import pydevd
 
-        pydevd.settrace(host, port=port, stdoutToServer=True, stderrToServer=True)
+        pydevd.settrace(host, port=port, stdoutToServer=True,
+                        stderrToServer=True)
         return True
     except Exception:
         with excutils.save_and_reraise_exception():
@@ -827,7 +834,8 @@ def get_stores_from_request(req, body):
             stores = body["stores"]
         except KeyError:
             stores = [
-                req.headers.get("x-image-meta-store", CONF.glance_store.default_backend)
+                req.headers.get("x-image-meta-store",
+                                CONF.glance_store.default_backend)
             ]
         else:
             if "x-image-meta-store" in req.headers:

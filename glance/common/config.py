@@ -57,8 +57,10 @@ glance_service_user_opts = [
     cfg.StrOpt("password", secret=True, help="Service user password"),
     cfg.StrOpt("user_domain_name", default="Default", help="User domain name"),
     cfg.StrOpt("project_name", help="Service user project name"),
-    cfg.StrOpt("project_domain_name", default="Default", help="Project domain name"),
-    cfg.BoolOpt("enabled", default=False, help="Enable service user integration"),
+    cfg.StrOpt("project_domain_name", default="Default",
+               help="Project domain name"),
+    cfg.BoolOpt("enabled", default=False,
+                help="Enable service user integration"),
 ]
 
 CONF.register_group(glance_service_user_group)
@@ -130,9 +132,11 @@ Related Options:
 image_format_opts = [
     cfg.ListOpt(
         "container_formats",
-        default=["ami", "ari", "aki", "bare", "ovf", "ova", "docker", "compressed"],
+        default=["ami", "ari", "aki", "bare",
+            "ovf", "ova", "docker", "compressed"],
         help=_("Supported values for the 'container_format' " "image attribute"),
-        deprecated_opts=[cfg.DeprecatedOpt("container_formats", group="DEFAULT")],
+        deprecated_opts=[cfg.DeprecatedOpt(
+            "container_formats", group="DEFAULT")],
     ),
     cfg.ListOpt(
         "disk_formats",
@@ -177,7 +181,8 @@ task_opts = [
             "Time in hours for which a task lives after, either "
             "succeeding or failing"
         ),
-        deprecated_opts=[cfg.DeprecatedOpt("task_time_to_live", group="DEFAULT")],
+        deprecated_opts=[cfg.DeprecatedOpt(
+            "task_time_to_live", group="DEFAULT")],
     ),
     cfg.StrOpt(
         "task_executor",
@@ -839,7 +844,8 @@ def parse_cache_args(args=None):
     # NOTE(abhishekk): Reading glance-api file first and glance-cache file
     # later so that if glance-cache file has different values set for some
     # cache related options then they should take precedence.
-    config_files.extend(cfg.find_config_files(project="glance", prog="glance-cache"))
+    config_files.extend(cfg.find_config_files(
+        project="glance", prog="glance-cache"))
     parse_args(args=args, default_config_files=config_files)
 
 

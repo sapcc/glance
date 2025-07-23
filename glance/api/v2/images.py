@@ -53,7 +53,8 @@ LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
 CONF.import_opt("disk_formats", "glance.common.config", group="image_format")
-CONF.import_opt("container_formats", "glance.common.config", group="image_format")
+CONF.import_opt("container_formats", "glance.common.config",
+                group="image_format")
 CONF.import_opt("show_multiple_locations", "glance.common.config")
 CONF.import_opt("hashing_algorithm", "glance.common.config")
 
@@ -99,7 +100,8 @@ class ImagesController(object):
             if "owner" not in image:
                 image["owner"] = req.context.project_id
 
-            api_policy.ImageAPIPolicy(req.context, image, self.policy).add_image()
+            api_policy.ImageAPIPolicy(
+                req.context, image, self.policy).add_image()
             ks_quota.enforce_image_count_total(req.context, req.context.owner)
 
             #   Attach domain info if enabled
@@ -347,7 +349,8 @@ class ImagesController(object):
             raise webob.exc.HTTPBadGateway("Stage host is unavailable")
         req_id_hdr = "x-openstack-request-id"
         if req_id_hdr in r.headers:
-            LOG.debug("Replying with remote request id %s", (r.headers[req_id_hdr]))
+            LOG.debug("Replying with remote request id %s",
+                      (r.headers[req_id_hdr]))
             req.context.request_id = r.headers[req_id_hdr]
         if r.status_code // 100 != 2:
             raise proxy_response_error(r.status_code, r.reason)
@@ -390,7 +393,8 @@ class ImagesController(object):
         try:
             ks_quota.enforce_image_size_total(req.context, req.context.owner)
         except exception.LimitExceeded as e:
-            raise webob.exc.HTTPRequestEntityTooLarge(explanation=str(e), request=req)
+            raise webob.exc.HTTPRequestEntityTooLarge(
+                explanation=str(e), request=req)
 
         try:
             image = image_repo.get(image_id)
@@ -398,7 +402,8 @@ class ImagesController(object):
                 msg = _("Image with status active cannot be target for import")
                 raise exception.Conflict(msg)
             if image.status != "active" and import_method == "copy-image":
-                msg = _("Only images with status active can be targeted for " "copying")
+                msg = _(
+                    "Only images with status active can be targeted for " "copying")
                 raise exception.Conflict(msg)
             if image.status != "queued" and import_method in [
                 "web-download",
@@ -528,7 +533,8 @@ class ImagesController(object):
             # they had called it themselves.
             return self._proxy_request_to_stage_host(image, req, body)
 
-        task_input = {"image_id": image_id, "import_req": body, "backend": stores}
+        task_input = {"image_id": image_id,
+            "import_req": body, "backend": stores}
 
         if import_method == "copy-image":
             # If this is a copy-image import and we passed the policy check,
@@ -593,7 +599,8 @@ class ImagesController(object):
         except exception.InvalidImageStatusTransition as e:
             raise webob.exc.HTTPConflict(explanation=e.msg)
         except exception.LimitExceeded as e:
-            raise webob.exc.HTTPRequestEntityTooLarge(explanation=str(e), request=req)
+            raise webob.exc.HTTPRequestEntityTooLarge(
+                explanation=str(e), request=req)
         except ValueError as e:
             LOG.debug(
                 "Cannot import data for image %(id)s: %(e)s",
@@ -746,7 +753,8 @@ class ImagesController(object):
         image_repo = self.gateway.get_repo(req.context)
         try:
             image = image_repo.get(image_id)
-            api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
+            api_policy.ImageAPIPolicy(
+                req.context, image, self.policy).get_image()
 
             domain_info = None
 
@@ -803,7 +811,8 @@ class ImagesController(object):
             # NOTE (abhishekk): Just to check image is valid
             image = image_repo.get(image_id)
             # Check you are authorized to fetch image details
-            api_policy.ImageAPIPolicy(req.context, image, self.policy).get_image()
+            api_policy.ImageAPIPolicy(
+                req.context, image, self.policy).get_image()
         except (exception.NotFound, exception.Forbidden):
             raise webob.exc.HTTPNotFound()
 
@@ -816,7 +825,8 @@ class ImagesController(object):
         image_repo = self.gateway.get_repo(req.context)
         try:
             image = image_repo.get(image_id)
-            api_pol = api_policy.ImageAPIPolicy(req.context, image, self.policy)
+            api_pol = api_policy.ImageAPIPolicy(
+                req.context, image, self.policy)
 
             for change in changes:
                 change_method_name = "_do_%s" % change["op"]
@@ -920,7 +930,8 @@ class ImagesController(object):
         if cinder_encryption_key_id is None:
             return
 
-        deletion_policy = props.get("cinder_encryption_key_deletion_policy", "")
+        deletion_policy = props.get(
+            "cinder_encryption_key_deletion_policy", "")
         if deletion_policy != "on_image_deletion":
             return
 
@@ -950,7 +961,8 @@ class ImagesController(object):
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
         except exception.NotFound:
-            msg = _("Failed to find image %(image_id)s") % {"image_id": image_id}
+            msg = _("Failed to find image %(image_id)s") % {
+                    "image_id": image_id}
             raise webob.exc.HTTPNotFound(explanation=msg)
 
         # NOTE(abhishekk): Delete from store internally checks for
@@ -973,7 +985,8 @@ class ImagesController(object):
             raise webob.exc.HTTPConflict(explanation=msg)
 
         if len(image.locations) == 1:
-            LOG.debug("User forbidden to remove last location of image %s", image_id)
+            LOG.debug(
+                "User forbidden to remove last location of image %s", image_id)
             msg = _(
                 "Cannot delete image data from the only store containing "
                 "it. Consider deleting the image instead."
@@ -1004,7 +1017,8 @@ class ImagesController(object):
         except glance_store.exceptions.InUseByStore as e:
             msg = (
                 "The data for Image %(id)s could not be deleted "
-                "because it is in use: %(exc)s" % {"id": image_id, "exc": e.msg}
+                "because it is in use: %(exc)s" % {
+                                         "id": image_id, "exc": e.msg}
             )
             LOG.warning(msg)
             raise webob.exc.HTTPConflict(explanation=msg)
@@ -1063,7 +1077,8 @@ class ImagesController(object):
             # NOTE(abhishekk): This is the right place to check whether user
             # have permission to delete the image and remove the policy check
             # later from the policy layer.
-            api_pol = api_policy.ImageAPIPolicy(req.context, image, self.policy)
+            api_pol = api_policy.ImageAPIPolicy(
+                req.context, image, self.policy)
             api_pol.delete_image()
 
             if self.is_proxyable(image):
@@ -1301,7 +1316,8 @@ class ImagesController(object):
 
     def _do_add_locations(self, image, path_pos, value, context):
         if CONF.show_multiple_locations == False:
-            msg = _("It's not allowed to add locations if locations are " "invisible.")
+            msg = _(
+                "It's not allowed to add locations if locations are " "invisible.")
             raise webob.exc.HTTPForbidden(explanation=msg)
 
         if image.status not in ("active", "queued"):
@@ -1388,7 +1404,8 @@ class ImagesController(object):
                 )
                 raise webob.exc.HTTPConflict(explanation=msg)
 
-            api_pol = api_policy.ImageAPIPolicy(req.context, image, self.policy)
+            api_pol = api_policy.ImageAPIPolicy(
+                req.context, image, self.policy)
             api_pol.add_location()
 
             roles = list(set(req.context.roles + req.context.service_roles))
@@ -1460,7 +1477,8 @@ class ImagesController(object):
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.Forbidden as e:
-            LOG.debug("User not permitted to add location to image '%s'", image_id)
+            LOG.debug(
+                "User not permitted to add location to image '%s'", image_id)
             raise webob.exc.HTTPForbidden(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
@@ -1478,7 +1496,8 @@ class ImagesController(object):
 
             # NOTE(pdeore): This is the right place to check whether user
             # have permission to get the image locations
-            api_pol = api_policy.ImageAPIPolicy(req.context, image, self.policy)
+            api_pol = api_policy.ImageAPIPolicy(
+                req.context, image, self.policy)
             api_pol.get_locations()
             locations = list(image.locations)
 
@@ -1597,7 +1616,8 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         # characters. Reference LP #1737952
         for key in properties:
             if len(key) > 255:
-                msg = _("Custom property should not be greater than 255 " "characters.")
+                msg = _(
+                    "Custom property should not be greater than 255 " "characters.")
                 raise webob.exc.HTTPBadRequest(explanation=msg)
 
             if key in self._reserved_properties:
@@ -1743,7 +1763,8 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         path_root = path[0]
         limits = self._path_depth_limits.get(path_root, {})
         if len(path) != limits.get(op, 1):
-            msg = _("Invalid JSON pointer for this resource: " "'/%s'") % "/".join(path)
+            msg = _(
+                "Invalid JSON pointer for this resource: " "'/%s'") % "/".join(path)
             raise webob.exc.HTTPBadRequest(explanation=msg)
 
     def _parse_json_schema_change(self, raw_change, draft_version):
@@ -1783,7 +1804,8 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
                 msg = _("Operations must be JSON objects.")
                 raise webob.exc.HTTPBadRequest(explanation=msg)
 
-            (op, path) = self._parse_json_schema_change(raw_change, json_schema_version)
+            (op, path) = self._parse_json_schema_change(
+                raw_change, json_schema_version)
 
             # NOTE(zhiyan): the 'path' is a list.
             self._validate_path(op, path)
