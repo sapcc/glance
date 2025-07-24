@@ -581,7 +581,7 @@ class ImagesController(object):
 
                 images = filtered_images
                 LOG.debug("[IAAS_FILTER] Final image count after filtering: %d", len(images))
-          
+
             # NOTE(danms): we need to include the next marker if the DB
             # paginated. Since we filter images based on policy, we can
             # not determine if pagination happened from the final list,
@@ -607,7 +607,20 @@ class ImagesController(object):
             image = image_repo.get(image_id)
             api_policy.ImageAPIPolicy(req.context, image,
                                       self.policy).get_image()
+
+            # Custom: Restrict public image access for iaas domains
+            user_domain_name = getattr(req.context, 'user_domain_name', None)
+            LOG.debug("[IAAS_FILTER] Effective user_domain_name: %s", user_domain_name)
+
+            if user_domain_name and user_domain_name.startswith('iaas'):
+                is_public = image.get('visibility') == 'public'
+                if is_public:
+                    LOG.debug("[IAAS_FILTER] BLOCKED: image '%s' is public and user is from iaas domain", image.get('id'))
+                    raise webob.exc.HTTPForbidden(
+                        explanation=f"Access to public image '{image.get('id')}' is forbidden for IaaS users.")
+
             return image
+
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:
