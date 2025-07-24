@@ -561,6 +561,39 @@ class ImagesController(object):
                                                    self.policy
                                                    ).check('get_image')]
 
+            # NOTE(custom): Restrict public images for users in 'iaas' domains
+            # We avoid showing public images to users whose user_domain_name
+            # starts with 'iaas' as a hard tenant-level policy enforcement.
+            user_domain_name = getattr(req.context, 'user_domain_name', None)
+
+            if user_domain_name and user_domain_name.startswith('iaas'):
+                LOG.debug(
+                    "[IAAS_FILTER] Detected iaas domain '%s'. "
+                    "Restricting public images...",
+                    user_domain_name)
+
+                filtered_images = []
+                for img in images:
+                    is_public = getattr(img, 'visibility', '') == 'public'
+
+                    # NOTE(custom): Public images are not allowed for iaas
+                    # domains
+                    if is_public:
+                        LOG.debug(
+                            "[IAAS_FILTER] SKIPPED: image '%s' is public",
+                            img.image_id)
+                        continue
+
+                    LOG.debug(
+                        "[IAAS_FILTER] ALLOWED: image '%s' is not public",
+                        img.image_id)
+                    filtered_images.append(img)
+
+                images = filtered_images
+                LOG.debug(
+                    "[IAAS_FILTER] Final image count after filtering: %d",
+                    len(images))
+
             # NOTE(danms): we need to include the next marker if the DB
             # paginated. Since we filter images based on policy, we can
             # not determine if pagination happened from the final list,
@@ -586,7 +619,27 @@ class ImagesController(object):
             image = image_repo.get(image_id)
             api_policy.ImageAPIPolicy(req.context, image,
                                       self.policy).get_image()
+
+            # Custom: Restrict public image access for iaas domains
+            user_domain_name = getattr(req.context, 'user_domain_name', None)
+
+            if user_domain_name and user_domain_name.startswith('iaas'):
+                LOG.debug(
+                    "[IAAS_FILTER] Effective user_domain_name: %s",
+                    user_domain_name)
+
+                is_public = image.visibility == 'public'
+                if is_public:
+                    LOG.debug(
+                        "[IAAS_FILTER] BLOCKED: image '%s' "
+                        "is public and user is from iaas domain",
+                        image.image_id)
+                    raise webob.exc.HTTPForbidden(
+                        explanation=f"Access public image '{image.image_id}' "
+                        "is forbidden for IaaS users.")
+
             return image
+
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:
