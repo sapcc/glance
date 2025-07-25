@@ -559,13 +559,12 @@ class ImagesController(object):
                                                    ).check('get_image')]
 
             # NOTE(custom): Restrict public images for users in 'iaas' domains
-            # We avoid showing public images to users whose user_domain_name
+            # We avoid showing public images to users whose project_domain_name
             # starts with 'iaas' as a hard tenant-level policy enforcement.
-            user_domain_name = getattr(req.context, 'user_domain_name', None)
-            LOG.debug("[IAAS_FILTER] Effective user_domain_name: %s", user_domain_name)
+            project_domain_name = getattr(req.context, 'project_domain_name', None)
 
-            if user_domain_name and user_domain_name.startswith('iaas'):
-                LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Restricting public images...", user_domain_name)
+            if project_domain_name and project_domain_name.startswith('iaas'):
+                LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Restricting public images...", project_domain_name)
 
                 filtered_images = []
                 for img in images:
@@ -609,15 +608,16 @@ class ImagesController(object):
                                       self.policy).get_image()
 
             # Custom: Restrict public image access for iaas domains
-            user_domain_name = getattr(req.context, 'user_domain_name', None)
-            LOG.debug("[IAAS_FILTER] Effective user_domain_name: %s", user_domain_name)
+            project_domain_name = getattr(req.context, 'project_domain_name', None)
 
-            if user_domain_name and user_domain_name.startswith('iaas'):
-                is_public = image.get('visibility') == 'public'
+            if project_domain_name and project_domain_name.startswith('iaas'):
+                LOG.debug("[IAAS_FILTER] Effective project_domain_name: %s", project_domain_name)
+
+                is_public = image.visibility == 'public'
                 if is_public:
-                    LOG.debug("[IAAS_FILTER] BLOCKED: image '%s' is public and user is from iaas domain", image.get('id'))
+                    LOG.debug("[IAAS_FILTER] BLOCKED: image '%s' is public and user is from iaas domain", image.image_id)
                     raise webob.exc.HTTPForbidden(
-                        explanation=f"Access to public image '{image.get('id')}' is forbidden for IaaS users.")
+                        explanation=f"Access to public image '{image.image_id}' is forbidden for IaaS users.")
 
             return image
 
