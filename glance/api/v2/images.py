@@ -563,7 +563,10 @@ class ImagesController(object):
             # starts with 'iaas' as a hard tenant-level policy enforcement.
             project_domain_name = getattr(req.context, 'project_domain_name', None)
 
-            if project_domain_name and project_domain_name.startswith('iaas'):
+            if not project_domain_name:
+                LOG.warning("[IAAS_FILTER] project_domain_name missing — skipping all images as precaution")
+                images = []
+            elif project_domain_name.startswith('iaas'):
                 LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Restricting public images...", project_domain_name)
 
                 filtered_images = []
@@ -610,7 +613,12 @@ class ImagesController(object):
             # Custom: Restrict public image access for iaas domains
             project_domain_name = getattr(req.context, 'project_domain_name', None)
 
-            if project_domain_name and project_domain_name.startswith('iaas'):
+            if not project_domain_name:
+                LOG.warning("[IAAS_FILTER] project_domain_name missing — denying access to public image as precaution")
+                raise webob.exc.HTTPForbidden(
+                    explanation="Access denied: project domain information is missing.")
+
+            if project_domain_name.startswith('iaas'):
                 LOG.debug("[IAAS_FILTER] Effective project_domain_name: %s", project_domain_name)
 
                 is_public = image.visibility == 'public'
@@ -625,6 +633,7 @@ class ImagesController(object):
             raise webob.exc.HTTPNotFound(explanation=e.msg)
         except exception.NotAuthenticated as e:
             raise webob.exc.HTTPUnauthorized(explanation=e.msg)
+
 
     def get_task_info(self, req, image_id):
         image_repo = self.gateway.get_repo(req.context)
