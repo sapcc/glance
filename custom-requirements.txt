@@ -1,6 +1,8 @@
 paste
 python_swiftclient
-python3-rados python3-rbd ceph-common
+python3-rados 
+python3-rbd 
+ceph-common
 
 git+https://github.com/sapcc/raven-python.git@ccloud#egg=raven
 git+https://github.com/sapcc/openstack-watcher-middleware.git#egg=watcher-middleware
