@@ -1508,7 +1508,7 @@ class MultiTenantStore(BaseStore):
 
     def delete(self, location, connection=None, context=None, max_retries=20, retry_delay=0.5):
         if not connection:
-           connection = self.get_connection(location.store_location, context=context)
+            connection = self.get_connection(location.store_location, context=context)
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -1518,7 +1518,7 @@ class MultiTenantStore(BaseStore):
                 break
             except swiftclient.ClientException as e:
                 # Log the exception or perform error handling if needed
-                LOG.warning(f"Deletion attempt {attempt} failed. Exception: {str(e)}")
+                LOG.warning(f"Deletion attempt {attempt} failed. Exception: {e}")
 
                 if attempt < max_retries:
                     LOG.warning(f"Retrying in {retry_delay} seconds...")
