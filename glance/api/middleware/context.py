@@ -134,7 +134,7 @@ class ContextMiddleware(BaseContextMiddleware):
 
         global_request_id = req.headers.get('X-Openstack-Request-ID')
         if global_request_id and (0 < CONF.max_request_id_length <
-                           len(global_request_id)):
+                                  len(global_request_id)):
             msg = (_('x-openstack-request-id is too long, max size %s') %
                    CONF.max_request_id_length)
             return webob.exc.HTTPRequestHeaderFieldsTooLarge(comment=msg)

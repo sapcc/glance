@@ -20,6 +20,7 @@ from glance_store import backend
 from glance_store import location
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import encodeutils
 from oslo_utils import excutils
 import webob.exc
 
