@@ -562,8 +562,10 @@ class ImagesController(object):
             # We avoid showing public images to users whose user_domain_name
             # starts with 'iaas' as a hard tenant-level policy enforcement.
             user_domain_name = getattr(req.context, 'user_domain_name', None)
+            explicit_visibility_requested = 'visibility' in filters
 
-            if user_domain_name and user_domain_name.startswith('iaas'):
+            if (user_domain_name and user_domain_name.startswith('iaas')
+                    and not explicit_visibility_requested):
                 LOG.debug("[IAAS_FILTER] Detected iaas domain '%s'. Restricting public images...", user_domain_name)
 
                 filtered_images = []
@@ -613,8 +615,8 @@ class ImagesController(object):
             if user_domain_name and user_domain_name.startswith('iaas'):
                 LOG.debug("[IAAS_FILTER] Effective user_domain_name: %s", user_domain_name)
 
-                is_public = image.visibility == 'public'
-                if is_public:
+                vis = getattr(image, 'visibility', '')
+                if vis == 'public':
                     LOG.debug("[IAAS_FILTER] BLOCKED: image '%s' is public and user is from iaas domain", image.image_id)
                     raise webob.exc.HTTPForbidden(
                         explanation=f"Access to public image '{image.image_id}' is forbidden for IaaS users.")
