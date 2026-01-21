@@ -50,7 +50,7 @@ class TestImageImportLocking(functional.SynchronousAPIBase):
         def slow_fake_set_data(data_iter, size=None, backend=None,
                                set_active=True):
             me = str(uuid.uuid4())
-            while state['want_run'] == True:
+            while state['want_run'] is True:
                 LOG.info('fake_set_data running %s', me)
                 state['running'] = True
                 time.sleep(0.1)
@@ -158,8 +158,7 @@ class TestImageImportLocking(functional.SynchronousAPIBase):
         self.assertEqual('store1,store3', image['stores'])
         self.assertEqual('', image['os_glance_failed_import'])
 
-        # Free up the stalled task and give eventlet time to let it
-        # play out the rest of the task
+        # Free up the stalled task and give it time to complete
         state['want_run'] = False
         for i in range(0, 10):
             image = self.api_get('/v2/images/%s' % image_id).json
