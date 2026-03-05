@@ -561,32 +561,31 @@ class ImagesController(object):
                                                    self.policy
                                                    ).check('get_image')]
 
-            # NOTE(custom): Restrict public images for users in 'iaas' domains
-            # We avoid showing public images to users whose user_domain_name
-            # starts with 'iaas' as a hard tenant-level policy enforcement.
+            # NOTE(custom): Restrict public and community images for users in
+            # 'iaas' domains. We avoid showing public/community images to users
+            # whose user_domain_name starts with 'iaas' as a hard tenant-level
+            # policy enforcement.
             user_domain_name = getattr(req.context, 'user_domain_name', None)
 
             if user_domain_name and user_domain_name.startswith('iaas'):
                 LOG.debug(
                     "[IAAS_FILTER] Detected iaas domain '%s'. "
-                    "Restricting public images...",
+                    "Restricting public and community images...",
                     user_domain_name)
 
                 filtered_images = []
                 for img in images:
-                    is_public = getattr(img, 'visibility', '') == 'public'
-
-                    # NOTE(custom): Public images are not allowed for iaas
-                    # domains
-                    if is_public:
+                    # NOTE(custom): Public and community images are not allowed
+                    # for iaas domains
+                    visibility = getattr(img, 'visibility', '')
+                    if visibility in ('public', 'community'):
                         LOG.debug(
-                            "[IAAS_FILTER] SKIPPED: image '%s' is public",
-                            img.image_id)
+                            "[IAAS_FILTER] SKIPPED: image '%s' has "
+                            "visibility '%s'", img.image_id, visibility)
                         continue
-
                     LOG.debug(
-                        "[IAAS_FILTER] ALLOWED: image '%s' is not public",
-                        img.image_id)
+                        "[IAAS_FILTER] ALLOWED: image '%s' has "
+                        "visibility '%s'", img.image_id, visibility)
                     filtered_images.append(img)
 
                 images = filtered_images
@@ -620,7 +619,8 @@ class ImagesController(object):
             api_policy.ImageAPIPolicy(req.context, image,
                                       self.policy).get_image()
 
-            # Custom: Restrict public image access for iaas domains
+            # Custom: Restrict public and community image access for iaas
+            # domains
             user_domain_name = getattr(req.context, 'user_domain_name', None)
 
             if user_domain_name and user_domain_name.startswith('iaas'):
@@ -628,15 +628,15 @@ class ImagesController(object):
                     "[IAAS_FILTER] Effective user_domain_name: %s",
                     user_domain_name)
 
-                is_public = image.visibility == 'public'
-                if is_public:
+                visibility = image.visibility
+                if visibility in ('public', 'community'):
                     LOG.debug(
-                        "[IAAS_FILTER] BLOCKED: image '%s' "
-                        "is public and user is from iaas domain",
-                        image.image_id)
+                        "[IAAS_FILTER] BLOCKED: image '%s' has "
+                        "visibility '%s' and user is from iaas domain",
+                        image.image_id, visibility)
                     raise webob.exc.HTTPForbidden(
-                        explanation=f"Access public image '{image.image_id}' "
-                        "is forbidden for IaaS users.")
+                        explanation=f"Access to {visibility} image "
+                        f"'{image.image_id}' is forbidden for IaaS users.")
 
             return image
 
