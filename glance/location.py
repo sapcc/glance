@@ -68,6 +68,15 @@ class ImageRepoProxy(glance.domain.proxy.Repo):
                 # that image location is present but the actual store is
                 # not related to this node.
                 image_store = location['metadata'].get('store')
+                # NOTE(sapcc): If store metadata is missing, try to derive
+                # it from the location URI. This can happen for images
+                # created before multi-store was enabled.
+                if not image_store:
+                    image_store = store_utils._get_store_id_from_uri(
+                        location['url'])
+                    if image_store:
+                        LOG.debug("Derived store '%s' from URI for image %s",
+                                  image_store, image.image_id)
                 if image_store not in CONF.enabled_backends:
                     msg = (_("Store %s is not available on "
                              "this node, skipping `_set_acls` "
@@ -750,6 +759,15 @@ class ImageMemberRepoProxy(glance.domain.proxy.Repo):
                     # deployment that image location is present but the actual
                     # store is not related to this node.
                     image_store = location['metadata'].get('store')
+                    # NOTE(sapcc): If store metadata is missing, try to derive
+                    # it from the location URI. This can happen for images
+                    # created before multi-store was enabled.
+                    if not image_store:
+                        image_store = store_utils._get_store_id_from_uri(
+                            location['url'])
+                        if image_store:
+                            LOG.debug("Derived store '%s' from URI for image "
+                                      "%s", image_store, self.image.image_id)
                     if image_store not in CONF.enabled_backends:
                         msg = (_("Store %s is not available on "
                                  "this node, skipping `_set_acls` "
