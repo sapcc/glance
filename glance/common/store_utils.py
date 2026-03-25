@@ -156,25 +156,86 @@ def validate_external_location(uri):
 
 
 def _get_store_id_from_uri(uri):
-    scheme = urlparse.urlparse(uri).scheme
+    """Get the store identifier from a location URI.
+
+    This function attempts to match a location URI to a configured store
+    by comparing against each store's url_prefix. For Swift multi-tenant
+    stores, the url_prefix matching may fail because the url_prefix format
+    is incompatible with actual multi-tenant URLs. In such cases, we fall
+    back to matching by scheme for Swift stores.
+
+    :param uri: The location URI to match
+    :returns: The store identifier if found, None otherwise
+    """
+    parsed = urlparse.urlparse(uri)
+    scheme = parsed.scheme
     location_map = store_api.location.SCHEME_TO_CLS_BACKEND_MAP
     url_matched = False
+    matched_store = None
+
     if scheme not in location_map:
         LOG.warning("Unknown scheme '%(scheme)s' found in uri '%(uri)s'", {
             'scheme': scheme, 'uri': uri})
         return
+
+    # First, try to match by url_prefix (works for most stores)
     for store in location_map[scheme]:
         store_instance = location_map[scheme][store]['store']
         url_prefix = store_instance.url_prefix
         if url_prefix and uri.startswith(url_prefix):
             url_matched = True
+            matched_store = store
             break
 
     if url_matched:
-        return u"%s" % store
-    else:
-        LOG.warning("Invalid location uri %s", uri)
-        return
+        return u"%s" % matched_store
+
+    # NOTE(sapcc): For Swift multi-tenant stores, the url_prefix is
+    # incorrectly formatted (e.g., "swift+https://host:container_" instead
+    # of a proper URL prefix). This causes url_prefix matching to fail for
+    # multi-tenant Swift URLs like:
+    # swift+https://host:port/v1/AUTH_project/container_imageid/imageid
+    #
+    # As a fallback, if we have a Swift URL and only one Swift store is
+    # configured for this scheme, we can safely assume it's the correct
+    # store. This handles the common case of a single multi-tenant Swift
+    # backend.
+    swift_schemes = ('swift', 'swift+http', 'swift+https')
+    if scheme in swift_schemes:
+        stores_for_scheme = list(location_map[scheme].keys())
+        if len(stores_for_scheme) == 1:
+            matched_store = stores_for_scheme[0]
+            LOG.debug("Matched Swift URI to store '%(store)s' by scheme "
+                      "fallback (single store configured for scheme "
+                      "'%(scheme)s')",
+                      {'store': matched_store, 'scheme': scheme})
+            return u"%s" % matched_store
+        elif len(stores_for_scheme) > 1:
+            # Multiple Swift stores configured - try to match by host
+            uri_host = parsed.netloc.split('@')[-1].split('/')[0]
+            for store in stores_for_scheme:
+                store_instance = location_map[scheme][store]['store']
+                # For multi-tenant stores, check if storage_url matches
+                # NOTE(sapcc): For MultiTenantStore, storage_url is only set
+                # when _get_endpoint() is called with a context. At this point
+                # it may be None. Use conf_endpoint which is set during
+                # configure() from swift_store_endpoint config option.
+                storage_url = (getattr(store_instance, 'conf_endpoint', None)
+                               or getattr(store_instance, 'storage_url', None))
+                if storage_url:
+                    storage_parsed = urlparse.urlparse(storage_url)
+                    storage_host = storage_parsed.netloc
+                    if uri_host == storage_host:
+                        LOG.debug("Matched Swift URI to store '%(store)s' "
+                                  "by host '%(host)s'",
+                                  {'store': store, 'host': uri_host})
+                        return u"%s" % store
+            LOG.debug("Could not match Swift URI to any of %(count)d "
+                      "configured stores by host",
+                      {'count': len(stores_for_scheme)})
+
+    LOG.warning("Invalid location uri %s", uri)
+    return
 
 
 def update_store_in_locations(context, image, image_repo):
