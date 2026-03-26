@@ -1555,7 +1555,7 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         visibility = filters.get('visibility')
         if visibility:
             if visibility not in ['community', 'public', 'private', 'shared',
-                                  'all']:
+                                  'domain', 'all']:
                 msg = _('Invalid visibility value: %s') % visibility
                 raise webob.exc.HTTPBadRequest(explanation=msg)
         changes_since = filters.get('changes-since')
@@ -1872,7 +1872,7 @@ def get_base_properties():
         'visibility': {
             'type': 'string',
             'description': _('Scope of image accessibility'),
-            'enum': ['community', 'public', 'private', 'shared'],
+            'enum': ['community', 'public', 'private', 'shared', 'domain'],
         },
         'protected': {
             'type': 'boolean',

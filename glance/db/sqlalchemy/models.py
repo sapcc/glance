@@ -131,7 +131,7 @@ class Image(BASE, GlanceBase):
     virtual_size = Column(BigInteger().with_variant(Integer, "sqlite"))
     status = Column(String(30), nullable=False)
     visibility = Column(Enum('private', 'public', 'shared', 'community',
-                        name='image_visibility'), nullable=False,
+                        'domain', name='image_visibility'), nullable=False,
                         server_default='shared')
     checksum = Column(String(32))
     os_hash_algo = Column(String(64))

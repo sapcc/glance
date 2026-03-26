@@ -113,6 +113,8 @@ def _enforce_image_visibility(policy, context, visibility, target):
         policy.enforce(context, 'publicize_image', target)
     elif visibility == 'community':
         policy.enforce(context, 'communitize_image', target)
+    elif visibility == 'domain':
+        policy.enforce(context, 'domain_image', target)
 
 
 class ImageTarget(abc.Mapping):
