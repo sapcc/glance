@@ -73,7 +73,7 @@ class ImageRepoProxy(glance.domain.proxy.Repo):
                 # created before multi-store was enabled.
                 if not image_store:
                     image_store = store_utils._get_store_id_from_uri(
-                        location['url'])
+                        location['url'], context=self.context)
                     if image_store:
                         LOG.debug("Derived store '%s' from URI for image %s",
                                   image_store, image.image_id)
@@ -764,7 +764,7 @@ class ImageMemberRepoProxy(glance.domain.proxy.Repo):
                     # created before multi-store was enabled.
                     if not image_store:
                         image_store = store_utils._get_store_id_from_uri(
-                            location['url'])
+                            location['url'], context=self.context)
                         if image_store:
                             LOG.debug("Derived store '%s' from URI for image "
                                       "%s", image_store, self.image.image_id)

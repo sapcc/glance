@@ -21,6 +21,7 @@ import tempfile
 from unittest import mock
 from urllib.parse import urlparse
 
+import ddt
 import glance_store as store
 from glance_store._drivers import cinder
 from oslo_config import cfg
@@ -39,6 +40,7 @@ CONF = cfg.CONF
 BASE_URI = unit_test_utils.BASE_URI
 
 
+@ddt.ddt
 class TestStoreUtils(test_utils.BaseTestCase):
     """Test glance.common.store_utils module"""
 
@@ -98,6 +100,61 @@ class TestStoreUtils(test_utils.BaseTestCase):
         self.config(enabled_backends=enabled_backends)
         self._test_update_store_in_location({}, None, None,
                                             save_call_count=0)
+
+    @ddt.data(
+        # (scheme_map, uri, expected_store_id, expected_warning_substr)
+        # Unknown scheme returns None
+        ({'rbd': {
+            'ceph1': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=True))}}},
+         'ftp://host/file', None, "Unknown scheme"),
+        # Single match returns store id
+        ({'rbd': {
+            'ceph1': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=True))}}},
+         'rbd://ceph1/pool/image', 'ceph1', None),
+        # No match returns None
+        ({'rbd': {
+            'ceph1': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=False))}}},
+         'rbd://ceph1/pool/image', None, "Invalid location uri"),
+        # Multiple matches returns None
+        ({'rbd': {
+            'ceph1': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=True))},
+            'ceph2': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=True))}}},
+         'rbd://ceph1/pool/image', None, "Multiple stores matched uri"),
+        # Multiple stores, one match returns correct id
+        ({'rbd': {
+            'ceph1': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=False))},
+            'ceph2': {'store': mock.Mock(
+                matches_uri=mock.Mock(return_value=True))}}},
+         'rbd://ceph2/pool/image', 'ceph2', None),
+    )
+    @ddt.unpack
+    @mock.patch.object(store_utils, 'LOG')
+    @mock.patch.object(store_utils, 'store_api')
+    def test_get_store_id_from_uri(self, scheme_map, uri, expected_store_id,
+                                   expected_warning_substr, mock_store_api,
+                                   mock_log):
+        mock_store_api.location.SCHEME_TO_CLS_BACKEND_MAP = scheme_map
+        context = mock.Mock()
+        result = store_utils._get_store_id_from_uri(uri, context=context)
+        self.assertEqual(expected_store_id, result)
+        if expected_warning_substr:
+            mock_log.warning.assert_called_once()
+            self.assertIn(expected_warning_substr,
+                          mock_log.warning.call_args[0][0])
+        else:
+            mock_log.warning.assert_not_called()
+        # Verify context is forwarded to every store's matches_uri
+        scheme = uri.split(':')[0]
+        if scheme in scheme_map:
+            for store_entry in scheme_map[scheme].values():
+                store_entry['store'].matches_uri.assert_called_with(
+                    uri, context=context)
 
 
 class TestCinderStoreUtils(base.MultiStoreClearingUnitTest):
@@ -1391,11 +1448,14 @@ class S3CredentialUpdateTestCase(test_utils.BaseTestCase):
             "Unknown scheme '%(scheme)s' found in uri",
             {'scheme': 's3'})
 
+    @mock.patch('glance.common.store_utils._get_store_id_from_uri',
+                return_value=None)
     @mock.patch('glance.common.store_utils.store_api')
     @mock.patch('glance.common.store_utils.CONF')
     @mock.patch('glance.common.store_utils.LOG')
     def test_update_s3_credentials_no_matching_store(
-            self, mock_log, mock_conf, mock_store_api):
+            self, mock_log, mock_conf, mock_store_api,
+            mock_get_store_id):
         """Test when no S3 store matches the bucket."""
         # Configure stores but with different buckets
         stores = {
@@ -1426,14 +1486,9 @@ class S3CredentialUpdateTestCase(test_utils.BaseTestCase):
             self.context, self.image, self.image_repo)
         # URL should remain unchanged
         self.assertEqual(location['url'], original_url)
-        expected_calls = [
-            mock.call("Invalid location uri %s",
-                      's3://old_key:old_secret@s3.amazonaws.com/'
-                      'unknown-bucket/object'),
-            mock.call("No S3 store found for image %(image_id)s",
-                      {'image_id': 'object'})
-        ]
-        mock_log.warning.assert_has_calls(expected_calls)
+        mock_log.warning.assert_called_once_with(
+            "No S3 store found for image %(image_id)s",
+            {'image_id': 'object'})
 
     @mock.patch('glance.common.store_utils.store_api')
     @mock.patch('glance.common.store_utils.CONF')
