@@ -155,26 +155,27 @@ def validate_external_location(uri):
             scheme not in RESTRICTED_URI_SCHEMAS)
 
 
-def _get_store_id_from_uri(uri):
+def _get_store_id_from_uri(uri, context=None):
     scheme = urlparse.urlparse(uri).scheme
     location_map = store_api.location.SCHEME_TO_CLS_BACKEND_MAP
-    url_matched = False
     if scheme not in location_map:
         LOG.warning("Unknown scheme '%(scheme)s' found in uri '%(uri)s'", {
             'scheme': scheme, 'uri': uri})
         return
+
+    matches = []
     for store in location_map[scheme]:
         store_instance = location_map[scheme][store]['store']
-        url_prefix = store_instance.url_prefix
-        if url_prefix and uri.startswith(url_prefix):
-            url_matched = True
-            break
+        if store_instance.matches_uri(uri, context=context):
+            matches.append(store)
 
-    if url_matched:
-        return u"%s" % store
+    if len(matches) == 1:
+        return u"%s" % matches[0]
+    elif len(matches) > 1:
+        LOG.warning("Multiple stores matched uri %s: %s", uri, matches)
     else:
         LOG.warning("Invalid location uri %s", uri)
-        return
+    return
 
 
 def update_store_in_locations(context, image, image_repo):
@@ -186,7 +187,7 @@ def update_store_in_locations(context, image, image_repo):
             if loc['url'].startswith("cinder://"):
                 _update_cinder_location_and_store_id(context, loc)
 
-            store_id = _get_store_id_from_uri(loc['url'])
+            store_id = _get_store_id_from_uri(loc['url'], context=context)
             if store_id:
                 if 'store' in loc['metadata']:
                     old_store = loc['metadata']['store']
@@ -348,7 +349,7 @@ def get_updated_store_location(locations, context=None):
             _update_cinder_location_and_store_id(context, loc)
             continue
 
-        store_id = _get_store_id_from_uri(loc['url'])
+        store_id = _get_store_id_from_uri(loc['url'], context=context)
         if store_id:
             loc['metadata']['store'] = store_id
 
