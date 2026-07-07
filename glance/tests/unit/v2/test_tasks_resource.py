@@ -16,6 +16,7 @@
 
 import datetime
 import http.client as http
+import socket
 from unittest import mock
 import uuid
 
@@ -297,12 +298,17 @@ class TestTasksController(test_utils.BaseTestCase):
         self.assertRaises(webob.exc.HTTPNotFound,
                           self.controller.get, request, UUID4)
 
+    @mock.patch('glance.common.utils.socket.getaddrinfo')
     @mock.patch('glance.api.common.get_thread_pool')
     @mock.patch.object(glance.gateway.Gateway, 'get_task_factory')
     @mock.patch.object(glance.gateway.Gateway, 'get_task_executor_factory')
     @mock.patch.object(glance.gateway.Gateway, 'get_task_repo')
     def test_create(self, mock_get_task_repo, mock_get_task_executor_factory,
-                    mock_get_task_factory, mock_get_thread_pool):
+                    mock_get_task_factory, mock_get_thread_pool,
+                    mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '',
+             ('93.184.216.34', 80))]
         # setup
         request = unit_test_utils.get_fake_request()
         task = {
@@ -426,13 +432,16 @@ class TestTasksController(test_utils.BaseTestCase):
             request.context)
         task_repo = self.gateway.get_task_repo(request.context)
 
-        task = {
-            "type": "import",
-            "input": {
-                "import_from": "swift://cloud.foo/myaccount/mycontainer/path",
-                "import_from_format": "qcow2",
+        with mock.patch('glance.common.utils.socket.getaddrinfo',
+                        return_value=[(None, None, None, None,
+                                       ('93.184.216.34', 80))]):
+            task = {
+                "type": "import",
+                "input": {
+                    "import_from": "http://example.com/myaccount/path",
+                    "import_from_format": "qcow2",
+                }
             }
-        }
         new_task = self.controller.create(request, task=task)
         task_executor = executor_factory.new_task_executor(request.context)
         task_executor.begin_processing(new_task.task_id)
@@ -442,8 +451,13 @@ class TestTasksController(test_utils.BaseTestCase):
         msg = "Input does not contain 'image_properties' field"
         self.assertEqual(msg, final_task.message)
 
+    @mock.patch('glance.common.utils.socket.getaddrinfo')
     @mock.patch.object(glance.gateway.Gateway, 'get_task_factory')
-    def test_notifications_on_create(self, mock_get_task_factory):
+    def test_notifications_on_create(self, mock_get_task_factory,
+                                     mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '',
+             ('93.184.216.34', 80))]
         request = unit_test_utils.get_fake_request()
 
         new_task = mock.MagicMock(type='import')
