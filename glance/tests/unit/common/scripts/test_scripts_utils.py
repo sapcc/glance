@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import socket
 from unittest import mock
 import urllib
 import urllib.error
@@ -153,6 +154,24 @@ class TestScriptsUtils(test_utils.BaseTestCase):
         location = 'cinder://'
         self.assertRaises(urllib.error.URLError,
                           script_utils.validate_location_uri, location)
+
+    @mock.patch('glance.common.utils.socket.getaddrinfo')
+    def test_validate_legacy_import_from_uri_ok(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '',
+             ('93.184.216.34', 80))]
+        uri = 'http://example.com/img'
+        self.assertEqual(
+            uri, script_utils.validate_legacy_import_from_uri(uri))
+
+    @mock.patch('glance.common.utils.socket.getaddrinfo')
+    def test_validate_legacy_import_from_uri_filtered(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (None, None, None, None, ('127.0.0.1', 80))]
+        self.config(allowed_ports=[80], group='import_filtering_opts')
+        self.assertRaises(exception.Invalid,
+                          script_utils.validate_legacy_import_from_uri,
+                          'http://127.0.0.1:80/x')
 
 
 class TestCallbackIterator(test_utils.BaseTestCase):
