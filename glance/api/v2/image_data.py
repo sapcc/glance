@@ -163,11 +163,13 @@ class ImageDataController(object):
 
                 try:
                     image_repo.save(image, from_state='saving')
-                except exception.NotAuthenticated:
+                except glance_store.NotAuthenticated:
+                    # ImageRepoProxy.save must have failed during _set_acls
+                    # after the database image state already transitioned to
+                    # 'active'.
                     if refresher is not None:
-                        # request a new token to update an image in database
                         cxt.auth_token = refresher.refresh_token()
-                        image_repo.save(image, from_state='saving')
+                        image_repo.save(image, from_state='active')
                     else:
                         raise
 
@@ -197,14 +199,14 @@ class ImageDataController(object):
                 raise webob.exc.HTTPGone(explanation=msg,
                                          request=req,
                                          content_type='text/plain')
-            except exception.NotAuthenticated:
+            except glance_store.NotAuthenticated:
                 msg = (_("Authentication error - the token may have "
                          "expired during file upload. Deleting image data for "
                          "%s.") % image_id)
                 LOG.debug(msg)
                 try:
                     image.delete()
-                except exception.NotAuthenticated:
+                except glance_store.NotAuthenticated:
                     # NOTE: Ignore this exception
                     pass
                 raise webob.exc.HTTPUnauthorized(explanation=msg,

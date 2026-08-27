@@ -19,9 +19,26 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 CONF = cfg.CONF
-CONF.register_opt(cfg.IntOpt('timeout'), group='keystone_authtoken')
 
 LOG = logging.getLogger(__name__)
+
+
+def _register_session_conf_opts() -> None:
+    """Register missing keystoneauth session config options.
+
+    ``TokenRefresher`` reuses keystonemiddleware's ``keystone_authtoken``
+    config group to create sessions. If keystonemiddleware is used, calling
+    keystoneauth's ``register_session_conf_options`` raises an exception
+    because keystonemiddleware already registers some of the options at import
+    time. Therefore we attempt to register each session option individually and
+    ignore ``DuplicateOptError`` for the options already
+    registered.
+    """
+    for opt in ka_loading.get_session_conf_options():
+        try:
+            CONF.register_opt(opt, group='keystone_authtoken')
+        except cfg.DuplicateOptError:
+            pass
 
 
 class TokenRefresher(object):
@@ -29,6 +46,12 @@ class TokenRefresher(object):
 
     def __init__(self, user_plugin, user_project, user_roles):
         """Prepare all parameters and clients required to refresh token"""
+        # Registering session config options from the `keystone_authtoken`
+        # config group at import time would raise an exception if
+        # `keystonemiddleware.auth_token` was ever imported after this module,
+        # e.g. for testing. Therefore we lazily register these options here.
+        _register_session_conf_opts()
+
         # step 1: create trust to ensure that we can always update token
 
         # trustor = user who made the request
