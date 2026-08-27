@@ -163,22 +163,18 @@ class ImageDataController(object):
 
                 try:
                     image_repo.save(image, from_state='saving')
-                except exception.NotAuthenticated:
+                except glance_store.NotAuthenticated:
+                    # ImageRepoProxy.save must have failed during _set_acls
+                    # after the database image state already transitioned to
+                    # 'active'.
                     if refresher is not None:
-                        # request a new token to update an image in database
                         cxt.auth_token = refresher.refresh_token()
-                        image_repo.save(image, from_state='saving')
+                        # Refresh image data to reduce the risk of overwriting
+                        # concurrent changes
+                        image = image_repo.get(image_id)
+                        image_repo.save(image, from_state='active')
                     else:
                         raise
-
-                try:
-                    # release resources required for re-auth
-                    if refresher is not None:
-                        refresher.release_resources()
-                except Exception as e:
-                    LOG.info(_LI("Unable to delete trust %(trust)s: %(err)s"),
-                             {"trust": refresher.trust_id,
-                              "err": e})
 
             except (glance_store.NotFound,
                     exception.ImageNotFound,
@@ -197,19 +193,30 @@ class ImageDataController(object):
                 raise webob.exc.HTTPGone(explanation=msg,
                                          request=req,
                                          content_type='text/plain')
-            except exception.NotAuthenticated:
+            except glance_store.NotAuthenticated:
                 msg = (_("Authentication error - the token may have "
                          "expired during file upload. Deleting image data for "
                          "%s.") % image_id)
                 LOG.debug(msg)
                 try:
                     image.delete()
-                except exception.NotAuthenticated:
+                except glance_store.NotAuthenticated:
                     # NOTE: Ignore this exception
                     pass
                 raise webob.exc.HTTPUnauthorized(explanation=msg,
                                                  request=req,
                                                  content_type='text/plain')
+
+            finally:
+                try:
+                    # release resources required for re-auth
+                    if refresher is not None:
+                        refresher.release_resources()
+                except Exception as e:
+                    LOG.info(_LI("Unable to delete trust %(trust)s: %(err)s"),
+                             {"trust": refresher.trust_id,
+                              "err": e})
+
         except ValueError as e:
             LOG.debug("Cannot save data for image %(id)s: %(e)s",
                       {'id': image_id,
