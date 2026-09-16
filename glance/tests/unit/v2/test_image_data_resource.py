@@ -287,7 +287,7 @@ class TestImagesController(base.StoreClearingUnitTest):
     def test_upload_with_expired_token(self):
         def side_effect(image, from_state=None):
             if from_state == 'saving':
-                raise exception.NotAuthenticated()
+                raise glance_store.NotAuthenticated()
 
         mocked_save = mock.Mock(side_effect=side_effect)
         mocked_delete = mock.Mock()
@@ -303,11 +303,12 @@ class TestImagesController(base.StoreClearingUnitTest):
 
     @mock.patch('glance.common.trust_auth.TokenRefresher')
     def test_upload_with_token_refresh(self, mock_refresher):
+        def side_effect(image, from_state=None):
+            if from_state == 'saving':
+                raise glance_store.NotAuthenticated()
+
         mock_refresher.return_value = mock.MagicMock()
-        mocked_save = mock.Mock()
-        mocked_save.side_effect = [lambda *a: None,
-                                   exception.NotAuthenticated(),
-                                   lambda *a: None]
+        mocked_save = mock.Mock(side_effect=side_effect)
         request = unit_test_utils.get_fake_request(roles=['admin', 'member'])
         request.environ['keystone.token_info'] = {
             'token': {
@@ -321,6 +322,28 @@ class TestImagesController(base.StoreClearingUnitTest):
         self.assertEqual('YYYY', image.data)
         self.assertEqual(4, image.size)
         self.assertEqual(3, mocked_save.call_count)
+        mock_refresher.return_value.refresh_token.assert_called_once()
+        mock_refresher.return_value.release_resources.assert_called_once()
+
+    def test_upload_with_expired_token_ignores_delete_failure(self):
+        """
+        For upload, raising a second glance_store.NotAuthenticated during image
+        deletion raises HTTPUnauthorized
+        """
+        def side_effect(image, from_state=None):
+            if from_state == 'saving':
+                raise glance_store.NotAuthenticated()
+
+        mocked_save = mock.Mock(side_effect=side_effect)
+        mocked_delete = mock.Mock(side_effect=glance_store.NotAuthenticated())
+        request = unit_test_utils.get_fake_request(roles=['admin', 'member'])
+        image = FakeImage('abcd')
+        image.delete = mocked_delete
+        self.image_repo.result = image
+        self.image_repo.save = mocked_save
+        self.assertRaises(webob.exc.HTTPUnauthorized, self.controller.upload,
+                          request, unit_test_utils.UUID1, 'YYYY', 4)
+        mocked_delete.assert_called_once_with()
 
     def test_upload_non_existent_image_during_save_initiates_deletion(self):
         def fake_save_not_found(self, from_state=None):
